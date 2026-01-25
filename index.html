@@ -1791,6 +1791,176 @@
               </div>
             )}
 
+            {/* V4.12: "What Today's Families Expect" - Statistics callout for non-SNF */}
+            {/* Demolishes the "seniors can't tech" myth with compelling data */}
+            {segment !== 'SNF' && (
+              <div style={{ marginTop: 40 }}>
+                <div style={{
+                  textAlign: 'center',
+                  marginBottom: 24
+                }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 24px',
+                    background: 'linear-gradient(135deg, rgba(252,201,59,0.15), rgba(252,201,59,0.05))',
+                    borderRadius: 100,
+                    border: '1px solid rgba(252,201,59,0.3)'
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span style={{
+                      fontFamily: "'Archivo'",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: '#fcc93b',
+                      textTransform: 'uppercase',
+                      letterSpacing: 2
+                    }}>
+                      Market Reality Check
+                    </span>
+                  </div>
+                </div>
+
+                <h3 style={{
+                  fontFamily: "'Archivo'",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  textAlign: 'center',
+                  marginBottom: 8,
+                  background: 'linear-gradient(135deg, #fff, #fcc93b)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}>
+                  What Today's Families Expect
+                </h3>
+                <p style={{
+                  color: 'var(--text-secondary)',
+                  fontSize: 15,
+                  textAlign: 'center',
+                  maxWidth: 500,
+                  margin: '0 auto 28px auto',
+                  lineHeight: 1.6
+                }}>
+                  Today's families aren't asking <em style={{ color: '#fcc93b', fontStyle: 'normal' }}>if</em> you offer modern payment options—they're surprised when you don't.
+                </p>
+
+                {/* Stats Grid - 4 compelling data points */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: 16,
+                  marginBottom: 20
+                }}>
+                  {/* Stat 1: Smartphone ownership */}
+                  <div className="glass-card" style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, rgba(60,143,199,0.12), rgba(60,143,199,0.04))',
+                    border: '1px solid rgba(60,143,199,0.25)',
+                    animation: 'fadeInUp 0.5s ease-out 0.1s both'
+                  }}>
+                    <div style={{
+                      fontSize: 42,
+                      fontWeight: 800,
+                      fontFamily: "'Archivo'",
+                      color: '#3c8fc7',
+                      lineHeight: 1,
+                      marginBottom: 4
+                    }}>78%</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      of seniors 65+ have smartphones
+                    </div>
+                  </div>
+
+                  {/* Stat 2: FinTech usage */}
+                  <div className="glass-card" style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(139,92,246,0.04))',
+                    border: '1px solid rgba(139,92,246,0.25)',
+                    animation: 'fadeInUp 0.5s ease-out 0.2s both'
+                  }}>
+                    <div style={{
+                      fontSize: 42,
+                      fontWeight: 800,
+                      fontFamily: "'Archivo'",
+                      color: '#8B5CF6',
+                      lineHeight: 1,
+                      marginBottom: 4
+                    }}>70%</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      of adults 50+ use FinTech apps
+                    </div>
+                  </div>
+
+                  {/* Stat 3: Digital bill pay */}
+                  <div className="glass-card" style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))',
+                    border: '1px solid rgba(16,185,129,0.25)',
+                    animation: 'fadeInUp 0.5s ease-out 0.3s both'
+                  }}>
+                    <div style={{
+                      fontSize: 42,
+                      fontWeight: 800,
+                      fontFamily: "'Archivo'",
+                      color: '#10B981',
+                      lineHeight: 1,
+                      marginBottom: 4
+                    }}>62%</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      of adults 50+ pay bills digitally
+                    </div>
+                  </div>
+
+                  {/* Stat 4: Competitive choice */}
+                  <div className="glass-card" style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, rgba(252,201,59,0.12), rgba(252,201,59,0.04))',
+                    border: '1px solid rgba(252,201,59,0.25)',
+                    animation: 'fadeInUp 0.5s ease-out 0.4s both'
+                  }}>
+                    <div style={{
+                      fontSize: 42,
+                      fontWeight: 800,
+                      fontFamily: "'Archivo'",
+                      color: '#fcc93b',
+                      lineHeight: 1,
+                      marginBottom: 4
+                    }}>67%</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      would choose card-accepting facility
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom insight callout */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  background: 'rgba(252,201,59,0.08)',
+                  borderRadius: 12,
+                  border: '1px dashed rgba(252,201,59,0.3)'
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b', flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    Only <strong style={{ color: '#fcc93b' }}>16%</strong> of senior living facilities have modern payment systems. <strong style={{ color: '#fff' }}>The first-mover advantage is real.</strong>
+                  </span>
+                </div>
+              </div>
+            )}
+
             <NavButtons />
           </div>
         );
@@ -2239,6 +2409,150 @@
               </p>
             </div>
 
+            {/* V4.12: Triple Win Framework Banner - Non-SNF only */}
+            {segment !== 'SNF' && (
+              <div className="glass-card" style={{
+                padding: 24, marginBottom: 24,
+                background: 'linear-gradient(135deg, rgba(252,201,59,0.08), rgba(60,143,199,0.05), rgba(139,92,246,0.05))',
+                border: '1px solid rgba(252,201,59,0.2)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {/* Decorative gradient overlay */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0, right: 0,
+                  width: 200, height: 200,
+                  background: 'radial-gradient(circle, rgba(252,201,59,0.1) 0%, transparent 70%)',
+                  pointerEvents: 'none'
+                }} />
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  marginBottom: 16
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{
+                    fontFamily: "'Archivo'",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#fcc93b',
+                    textTransform: 'uppercase',
+                    letterSpacing: 2
+                  }}>
+                    The Triple Win Framework
+                  </span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+
+                <p style={{
+                  color: 'var(--text-primary)',
+                  fontSize: 16,
+                  textAlign: 'center',
+                  marginBottom: 20,
+                  fontWeight: 500,
+                  maxWidth: 600,
+                  margin: '0 auto 20px auto',
+                  lineHeight: 1.5
+                }}>
+                  Smart operators make <em style={{ color: '#fcc93b', fontStyle: 'normal', fontWeight: 700 }}>one decision</em> that simultaneously improves all three areas:
+                </p>
+
+                {/* Three pillars */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 16,
+                  position: 'relative'
+                }}>
+                  {/* Pillar 1: Efficiency */}
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '16px 12px',
+                    background: 'rgba(60,143,199,0.12)',
+                    borderRadius: 12,
+                    border: '1px solid rgba(60,143,199,0.25)'
+                  }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: 'linear-gradient(135deg, rgba(60,143,199,0.3), rgba(60,143,199,0.1))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto 10px auto'
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ color: '#3c8fc7' }}>
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 700, color: '#3c8fc7', marginBottom: 4 }}>
+                      Efficiency
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      96% less processing time
+                    </div>
+                  </div>
+
+                  {/* Pillar 2: Experience */}
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '16px 12px',
+                    background: 'rgba(139,92,246,0.12)',
+                    borderRadius: 12,
+                    border: '1px solid rgba(139,92,246,0.25)'
+                  }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(139,92,246,0.1))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto 10px auto'
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ color: '#8B5CF6' }}>
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 700, color: '#8B5CF6', marginBottom: 4 }}>
+                      Experience
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      72% fewer missed payments
+                    </div>
+                  </div>
+
+                  {/* Pillar 3: Edge */}
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '16px 12px',
+                    background: 'rgba(252,201,59,0.12)',
+                    borderRadius: 12,
+                    border: '1px solid rgba(252,201,59,0.25)'
+                  }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: 'linear-gradient(135deg, rgba(252,201,59,0.3), rgba(252,201,59,0.1))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto 10px auto'
+                    }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 700, color: '#fcc93b', marginBottom: 4 }}>
+                      Edge
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      67% prefer modern options
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Cumulative Score Progress Bar */}
             <div className="glass-card" style={{ padding: 20, marginBottom: 24, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(60,143,199,0.04))' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -2615,6 +2929,171 @@
                 ))}
               </div>
             </div>
+
+            {/* V4.12: The Smart Operator Decision - Summary Card (Non-SNF only) */}
+            {segment !== 'SNF' && (
+              <div style={{ marginTop: 28 }}>
+                <div className="glass-card" style={{
+                  padding: 28,
+                  background: 'linear-gradient(135deg, rgba(7,33,64,0.95), rgba(7,33,64,0.85))',
+                  border: '2px solid rgba(252,201,59,0.4)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  {/* Decorative corner accents */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0, left: 0,
+                    width: 60, height: 60,
+                    background: 'linear-gradient(135deg, rgba(252,201,59,0.2), transparent)',
+                    pointerEvents: 'none'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0, right: 0,
+                    width: 80, height: 80,
+                    background: 'radial-gradient(circle, rgba(16,185,129,0.15), transparent)',
+                    pointerEvents: 'none'
+                  }} />
+
+                  {/* Header */}
+                  <div style={{ textAlign: 'center', marginBottom: 24, position: 'relative' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 20px',
+                      background: 'rgba(252,201,59,0.15)',
+                      borderRadius: 100,
+                      border: '1px solid rgba(252,201,59,0.3)',
+                      marginBottom: 12
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#fcc93b', textTransform: 'uppercase', letterSpacing: 2 }}>
+                        The Bottom Line
+                      </span>
+                    </div>
+                    <h3 style={{
+                      fontFamily: "'Archivo'",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: '#fff',
+                      marginBottom: 6,
+                      lineHeight: 1.3
+                    }}>
+                      One Decision That Does Three Things
+                    </h3>
+                    <p style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 14,
+                      maxWidth: 400,
+                      margin: '0 auto'
+                    }}>
+                      Smart operators don't make three separate investments—they make one.
+                    </p>
+                  </div>
+
+                  {/* Three wins */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 12,
+                    marginBottom: 20
+                  }}>
+                    {/* Win 1: Efficiency */}
+                    <div style={{
+                      background: 'rgba(60,143,199,0.15)',
+                      borderRadius: 12,
+                      padding: '16px 12px',
+                      border: '1px solid rgba(60,143,199,0.25)'
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: 'rgba(60,143,199,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 10
+                      }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: '#3c8fc7' }}>
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M22 4L12 14.01l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                      <div style={{ fontFamily: "'Archivo'", fontSize: 13, fontWeight: 700, color: '#3c8fc7', marginBottom: 6 }}>
+                        Improve Efficiency
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                        96% reduction in processing time • Real-time PCC integration
+                      </div>
+                    </div>
+
+                    {/* Win 2: Experience */}
+                    <div style={{
+                      background: 'rgba(139,92,246,0.15)',
+                      borderRadius: 12,
+                      padding: '16px 12px',
+                      border: '1px solid rgba(139,92,246,0.25)'
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: 'rgba(139,92,246,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 10
+                      }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: '#8B5CF6' }}>
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                      <div style={{ fontFamily: "'Archivo'", fontSize: 13, fontWeight: 700, color: '#8B5CF6', marginBottom: 6 }}>
+                        Elevate Experience
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                        Multi-guarantor billing • Individual statements per family
+                      </div>
+                    </div>
+
+                    {/* Win 3: Edge */}
+                    <div style={{
+                      background: 'rgba(252,201,59,0.15)',
+                      borderRadius: 12,
+                      padding: '16px 12px',
+                      border: '1px solid rgba(252,201,59,0.25)'
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: 'rgba(252,201,59,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 10
+                      }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: '#fcc93b' }}>
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                      <div style={{ fontFamily: "'Archivo'", fontSize: 13, fontWeight: 700, color: '#fcc93b', marginBottom: 6 }}>
+                        Gain Competitive Edge
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                        Stand out during tours • Meet modern expectations
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PatientPay tagline */}
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '14px 20px',
+                    background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(60,143,199,0.08))',
+                    borderRadius: 10,
+                    border: '1px solid rgba(16,185,129,0.25)'
+                  }}>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>
+                      <strong style={{ color: '#10B981' }}>PatientPay</strong> is that decision.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <NavButtons />
           </div>

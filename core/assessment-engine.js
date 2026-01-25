@@ -4907,6 +4907,104 @@ async function generatePDFReport(formData, answers, scores) {
     }
   }
 
+  // V4.12: Triple Win Framework for non-SNF segments
+  if (segment !== 'SNF') {
+    y += spacing.md;
+
+    // "What Today's Families Expect" Stats Box
+    setFillColor([255, 251, 235]); // Light amber
+    doc.roundedRect(margin, y, contentWidth, 100, radius.md, radius.md, 'F');
+
+    // Accent bar
+    setFillColor(colors.accent);
+    doc.roundedRect(margin, y, 5, 100, radius.sm, radius.sm, 'F');
+
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.lg);
+    doc.setFont('helvetica', 'bold');
+    doc.text('What Today\'s Families Expect', margin + spacing.lg, y + 22);
+
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Today\'s families aren\'t asking IF you offer modern payment options—they\'re surprised when you don\'t.', margin + spacing.lg, y + 38);
+
+    // 4 key stats in a row
+    const statsY = y + 55;
+    const statWidth = (contentWidth - 40) / 4;
+    const familyStats = [
+      { value: '78%', label: 'seniors 65+ have smartphones' },
+      { value: '70%', label: 'adults 50+ use FinTech' },
+      { value: '62%', label: 'pay bills digitally' },
+      { value: '67%', label: 'prefer card-accepting facilities' }
+    ];
+
+    familyStats.forEach((stat, i) => {
+      const statX = margin + spacing.lg + (i * statWidth);
+
+      setColor(colors.secondary);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(stat.value, statX, statsY);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      const labelLines = doc.splitTextToSize(stat.label, statWidth - 10);
+      doc.text(labelLines, statX, statsY + 14);
+    });
+
+    y += 115;
+
+    // Triple Win Summary Box
+    setFillColor(colors.primary);
+    doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
+
+    // Accent line at top
+    setFillColor(colors.accent);
+    doc.roundedRect(margin, y, contentWidth, 3, radius.lg, radius.lg, 'F');
+
+    setColor(colors.accent);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('THE ONE DECISION THAT DOES THREE THINGS', margin + spacing.lg, y + 22);
+
+    setColor(colors.white);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Smart operators don\'t make three separate investments—they make one.', margin + spacing.lg, y + 38);
+
+    // Three pillars
+    const pillarY = y + 52;
+    const pillarWidth = (contentWidth - 50) / 3;
+
+    const pillars = [
+      { title: 'Efficiency', stat: '96% faster', color: colors.secondary },
+      { title: 'Experience', stat: '72% fewer misses', color: [139, 92, 246] }, // Purple
+      { title: 'Edge', stat: '67% prefer modern', color: colors.accent }
+    ];
+
+    pillars.forEach((pillar, i) => {
+      const pillarX = margin + spacing.lg + (i * (pillarWidth + 10));
+
+      // Pillar background (semi-transparent white effect using light color)
+      setFillColor([30, 50, 80]); // Slightly lighter than navy
+      doc.roundedRect(pillarX, pillarY, pillarWidth, 35, radius.sm, radius.sm, 'F');
+
+      setColor(pillar.color);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'bold');
+      doc.text(pillar.title, pillarX + 8, pillarY + 14);
+
+      setColor(colors.white);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'normal');
+      doc.text(pillar.stat, pillarX + 8, pillarY + 28);
+    });
+
+    y += 110;
+  }
+
   addFooter(4);
 
   // ============================================
