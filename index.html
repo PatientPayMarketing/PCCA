@@ -1228,6 +1228,51 @@
                 </div>
               )}
 
+              {/* V4.11: Currency input - dollar amount with formatting */}
+              {q.type === 'currency' && (() => {
+                const currencyValue = localValue !== undefined && localValue !== null ? localValue : (q.default || 0);
+                const sliderProgress = ((currencyValue - q.min) / (q.max - q.min)) * 100;
+                const formatCurrency = (val) => {
+                  if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+                  if (val >= 1000) return `$${(val / 1000).toFixed(0)}K`;
+                  return `$${val.toLocaleString()}`;
+                };
+                return (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', marginBottom: 32 }}>
+                      <div style={{ fontSize: 64, fontWeight: 800, fontFamily: "'Archivo'", color: '#10b981',
+                        textShadow: '0 0 40px rgba(16,185,129,0.4)', transition: 'all 0.3s' }}>
+                        {formatCurrency(currencyValue)}
+                      </div>
+                      {q.unit && <div style={{ fontSize: 18, color: 'var(--text-secondary)', marginLeft: 12 }}>{q.unit}</div>}
+                    </div>
+                    <div style={{ position: 'relative', padding: '10px 0' }}>
+                      <input type="range" min={q.min} max={q.max} step={q.step || 1000} value={currencyValue}
+                        onChange={(e) => setLocalValue(parseInt(e.target.value))}
+                        style={{ background: `linear-gradient(to right, #10b981 0%, #10b981 ${sliderProgress}%, var(--bg-tertiary) ${sliderProgress}%, var(--bg-tertiary) 100%)` }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>
+                      <span>{formatCurrency(q.min)}</span><span>{formatCurrency(q.max)}</span>
+                    </div>
+                    {/* Quick select buttons */}
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
+                      {[50000, 100000, 150000, 250000].map(val => (
+                        <button key={val} onClick={() => setLocalValue(val)}
+                          style={{
+                            padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                            background: currencyValue === val ? 'rgba(16,185,129,0.2)' : 'var(--bg-card)',
+                            border: `1px solid ${currencyValue === val ? '#10b981' : 'var(--border-subtle)'}`,
+                            color: currencyValue === val ? '#10b981' : 'var(--text-secondary)',
+                            cursor: 'pointer', transition: 'all 0.2s'
+                          }}>
+                          {formatCurrency(val)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Navigation */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 48, paddingTop: 28, borderTop: '1px solid var(--border-subtle)' }}>
                 {!isFirst ? (
@@ -1833,8 +1878,82 @@
               </div>
             )}
 
-            {/* Financial Opportunity Summary */}
-            {insights && (insights.potentialFreedCash > 0 || insights.cashFreedByAutopay > 0 || insights.annualCardFeesAbsorbed > 0) && (
+            {/* V4.11: Enhanced Financial Opportunity Summary - SNF shows detailed impact */}
+            {insights && answers['facility_type'] === 'SNF' && insights.snfMonthlyBilling > 0 && (
+              <div className="glass-card" style={{
+                padding: 32, marginBottom: 28,
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(60,143,199,0.08))',
+                border: '1px solid rgba(16,185,129,0.4)'
+              }}>
+                <div style={{ fontSize: 13, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8, textAlign: 'center' }}>
+                  Your Patient Billing
+                </div>
+                <div style={{ fontSize: 48, fontWeight: 800, fontFamily: "'Archivo'", color: '#3c8fc7', textAlign: 'center', marginBottom: 24 }}>
+                  ${insights.snfMonthlyBilling?.toLocaleString()}<span style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-secondary)' }}>/month</span>
+                </div>
+
+                {/* Current State */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+                  <div style={{ textAlign: 'center', padding: 20, background: 'rgba(239,68,68,0.1)', borderRadius: 12, border: '1px solid rgba(239,68,68,0.2)' }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: '#EF4444' }}>
+                      ${insights.snfCashInAR?.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Cash stuck in A/R</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {insights.snfCurrentARDays} days to collect
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: 20, background: 'rgba(245,158,11,0.1)', borderRadius: 12, border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: '#F59E0B' }}>
+                      ${insights.snfCurrentBadDebt?.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>Annual bad debt risk</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      ~3% of patient billing
+                    </div>
+                  </div>
+                </div>
+
+                {/* With PatientPay */}
+                <div style={{ padding: 24, background: 'rgba(16,185,129,0.15)', borderRadius: 16, border: '1px solid rgba(16,185,129,0.4)' }}>
+                  <div style={{ fontSize: 12, color: '#10B981', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16, textAlign: 'center', fontWeight: 700 }}>
+                    With PatientPay
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981' }}>
+                        ${insights.snfCashFreedByARReduction?.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Cash freed</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981' }}>
+                        {insights.snfCurrentARDays} → {insights.snfProjectedARDays}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>AR days (47% faster)</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981' }}>
+                        ${insights.snfBadDebtSavings?.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bad debt reduced</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', paddingTop: 16, borderTop: '1px solid rgba(16,185,129,0.3)' }}>
+                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>Total Annual Impact</div>
+                    <div style={{ fontSize: 42, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981', textShadow: '0 0 30px rgba(16,185,129,0.4)' }}>
+                      ${insights.snfTotalAnnualImpact?.toLocaleString()}+
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                      Based on PatientPay customer results: 47% AR reduction, 40% bad debt reduction
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Non-SNF Financial Opportunity (original) */}
+            {insights && answers['facility_type'] !== 'SNF' && (insights.potentialFreedCash > 0 || insights.cashFreedByAutopay > 0 || insights.annualCardFeesAbsorbed > 0) && (
               <div className="glass-card" style={{
                 padding: 28, marginBottom: 28,
                 background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(60,143,199,0.08))',

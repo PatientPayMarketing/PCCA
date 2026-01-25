@@ -1,6 +1,6 @@
 /**
  * PatientPay Senior Living Payment Readiness Assessment
- * CORE ENGINE - Version 4.10
+ * CORE ENGINE - Version 4.11
  *
  * This file contains all business logic, calculations, and data.
  * It is UI-agnostic and can be used with any presentation layer.
@@ -8,23 +8,31 @@
  * DO NOT MODIFY unless changing business logic, scoring, or questions.
  * UI changes should be made in the UI layer files only.
  *
+ * V4.11 Changes (SNF Financial Impact Focus):
+ * - REPLACED: snf_payer_mix (3-field) with snf_monthly_patient_billing (currency input)
+ *   - Direct dollar input is more meaningful than payer percentages
+ *   - Users know their monthly patient billing; they may not know exact payer mix
+ * - NEW: snf_patient_ar_days - How long to collect patient balances (slider 15-120 days)
+ *   - Enables powerful ROI projections based on PatientPay success stories
+ * - ENHANCED: Financial calculations now show:
+ *   - Cash stuck in AR (monthly billing × AR days / 30)
+ *   - Projected AR reduction (47% based on Lake Washington PT case study)
+ *   - Cash freed with PatientPay
+ *   - Bad debt reduction (40% based on Encore case study)
+ *   - Total annual financial impact
+ * - ENHANCED: Results and PDF now prominently display dollar impact
+ * - PatientPay Success Story Metrics Used:
+ *   - 47% AR days reduction (Lake Washington: 45→20 days)
+ *   - 40% bad debt reduction (Encore)
+ *   - 2X cash collections (IRG, Alpine)
+ *   - 25% more collected in first 30 days (IRG)
+ *   - 60% text-to-pay rate vs 43% industry average (IRG)
+ *
  * V4.10 Changes (SNF Option A - Simplified Patient Responsibility Collection):
  * - PHILOSOPHY: Only ask about things PatientPay actually fixes
- * - REMOVED: snf_ar_days, snf_clean_claims, snf_aged_ar (PatientPay doesn't fix these)
- * - REMOVED: snf_primary_challenge (asked about payer denials - not PatientPay's domain)
- * - REMOVED: snf_card_fees, snf_card_volume, snf_payment_plans (complexity without value)
  * - EXCLUDED: SNF from statement_processing and pcc_integration (generic ops questions)
  * - RENAMED: SNF categories from "Operational Readiness" to "Collection Efficiency"
- *           Second category is "Family Experience" (not "Patient & Family Experience")
- * - KEPT: 7 essential SNF questions:
- *   1. snf_annual_patients (diagnostic - exact number input)
- *   2. snf_payer_mix (diagnostic - 3-field input)
- *   3. snf_collection_rate (scored - Collection Efficiency)
- *   4. snf_payment_methods (scored - Collection Efficiency)
- *   5. snf_autopay + snf_autopay_enrollment (scored - Collection Efficiency)
- *   6. snf_multi_guarantor (scored - Family Experience)
- *   7. snf_family_satisfaction (scored - Family Experience)
- * - Updated all recommendations and projections to match simplified question set
+ * - SNF questions focused on patient responsibility collection
  *
  * V4.9 Changes (SNF Assessment Overhaul - retained concepts):
  * - snf_payer_mix: 3-field input for precise Medicare/Medicaid/Private Pay %
@@ -332,17 +340,18 @@ function getPerformanceVsBenchmark(score, benchmark) {
 }
 
 // ============================================
-// QUESTION DEFINITIONS - V4.10 Option A
+// QUESTION DEFINITIONS - V4.11 Financial Impact Focus
 //
-// V4.10 PHILOSOPHY: Only ask about things PatientPay actually fixes
-// SNF assessment simplified to focus on PATIENT RESPONSIBILITY COLLECTION
+// V4.11 PHILOSOPHY: Ask questions that directly connect to ROI
+// SNF assessment captures dollars and days for powerful projections
 //
-// SNF FLOW (V4.10 - Option A Simplified):
+// SNF FLOW (V4.11 - Financial Impact):
 // Categories: Collection Efficiency (60%) + Family Experience (40%)
 //
 // 1. CONTEXT (diagnostic, no scoring):
 //    - snf_annual_patients (exact number input)
-//    - snf_payer_mix (3-field input: Medicare/Medicaid/Private Pay %)
+//    - snf_monthly_patient_billing (currency input - what they bill patients)
+//    - snf_patient_ar_days (slider - how long to collect)
 //
 // 2. COLLECTION EFFICIENCY (scored):
 //    - snf_collection_rate (slider 40-100%)
@@ -353,13 +362,14 @@ function getPerformanceVsBenchmark(score, benchmark) {
 //    - snf_multi_guarantor
 //    - snf_family_satisfaction
 //
-// TOTAL: 7 questions (2 diagnostic + 5-6 scored depending on autopay conditional)
+// TOTAL: 8 questions (3 diagnostic + 5-6 scored depending on autopay conditional)
 //
-// V4.10 REMOVED from SNF:
-// - snf_ar_days, snf_clean_claims, snf_aged_ar (PatientPay doesn't fix claims/payer issues)
-// - snf_primary_challenge (asked about payer denials - not PatientPay's domain)
-// - snf_card_fees, snf_card_volume, snf_payment_plans (complexity without core value)
-// - statement_processing, pcc_integration (generic ops, excluded for SNF)
+// V4.11 FINANCIAL IMPACT CALCULATIONS:
+// - Cash stuck in AR = monthly_billing × ar_days / 30
+// - AR reduction = 47% (Lake Washington PT case study)
+// - Bad debt reduction = 40% (Encore case study)
+// - Cash freed = cash_in_ar × 0.47
+// - Annual bad debt savings = annual_billing × 0.03 × 0.40
 //
 // NON-SNF FLOW (V4.4 - unchanged):
 // 1. OPERATIONS: statement_processing, pcc_integration, coordination_burden
@@ -409,31 +419,53 @@ const Questions = [
     unit: "patients/year"
   },
 
-  // SNF-CTX2: Payer Mix Breakdown (V4.9 - 3-field input)
-  // Replaces single-select private pay % for more accurate financial calculations
+  // SNF-CTX2: Monthly Patient Billing Volume (V4.11 - replaces payer mix)
+  // V4.11: Simplified to ask directly about patient responsibility billing
+  // This is more meaningful than payer mix because it's what PatientPay actually optimizes
   {
-    id: 'snf_payer_mix',
+    id: 'snf_monthly_patient_billing',
     category: null, // Diagnostic - no scoring
     categoryIndex: null,
     isDiagnostic: true,
-    question: "What's your approximate payer mix?",
-    subtext: "SNF national average: Medicare 14%, Medicaid 60%, Private Pay 26%",
-    type: "payer_mix", // V4.9: New type for 3-field input
+    question: "How much does your facility bill directly to patients and families each month?",
+    subtext: "Include private pay and Medicare coinsurance (days 21-100). Exclude claims billed to Medicare/Medicaid payers.",
+    type: "currency", // V4.11: New currency input type
     segments: ['SNF'],
-    fields: [
-      { id: 'medicare_pct', label: 'Medicare/Medicare Advantage', default: 15, unit: '%' },
-      { id: 'medicaid_pct', label: 'Medicaid', default: 60, unit: '%' },
-      { id: 'private_pay_pct', label: 'Private Pay/Self-Pay', default: 25, unit: '%' }
-    ],
-    validation: {
-      sumTarget: 100,
-      tolerance: 5, // Allow 95-105% for rounding
-      errorMessage: "Percentages should add up to approximately 100%"
-    },
+    min: 10000,
+    max: 750000,
+    step: 5000,
+    default: 75000,
+    unit: "per month",
+    formatPrefix: "$",
     insight: {
-      trigger: (values) => values && values.private_pay_pct >= 20,
-      message: "Your private pay portion ({private_pay_pct}%) represents significant revenue requiring different collection strategies than government payers.",
-      proofPoint: "60% payment rate via text-to-pay vs 43% industry average"
+      trigger: (value) => value >= 50000,
+      message: "Your patient responsibility revenue is exactly what PatientPay optimizes - faster collection, lower bad debt, better family experience.",
+      proofPoint: "Facilities see 2X cash collections and 40% reduction in bad debt"
+    }
+  },
+
+  // SNF-CTX3: Current AR Days for Patient Balances (V4.11 - NEW)
+  // V4.11: Directly measures collection speed - key metric for ROI calculation
+  {
+    id: 'snf_patient_ar_days',
+    category: null, // Diagnostic - no scoring
+    categoryIndex: null,
+    isDiagnostic: true,
+    question: "On average, how long does it take to collect patient responsibility balances?",
+    subtext: "From statement sent to payment received. SNF industry average is 56-60 days; best practice is 30-40 days.",
+    type: "slider",
+    segments: ['SNF'],
+    min: 15,
+    max: 120,
+    step: 5,
+    default: 60,
+    unit: "days",
+    benchmark: 35, // Best practice target
+    benchmarkLabel: "Best Practice: 30-40 days",
+    insight: {
+      trigger: (value) => value > 45,
+      message: "Facilities using PatientPay see a 47% reduction in AR days - from 45 days to 20 days on average.",
+      proofPoint: "Lake Washington PT: AR days dropped from 45 to 20 within the first month"
     }
   },
 
@@ -3038,11 +3070,14 @@ function getScoreColor(score) {
 /**
  * Calculate personalized financial insights
  * V4.4: Updated to use new multi-guarantor question flow
- * V4.9: Enhanced SNF calculations with precise inputs:
- *       - snf_annual_patients for patient throughput
- *       - snf_payer_mix for precise Medicare/Medicaid/Private Pay % (3-field input)
- *       - snf_collection_rate for precise collection rate (slider)
- * V4.10: Simplified to remove non-PatientPay metrics (AR days, clean claims, aged AR)
+ * V4.11: SNF now uses direct financial inputs for powerful ROI projections:
+ *       - snf_monthly_patient_billing (what they actually bill patients)
+ *       - snf_patient_ar_days (how long to collect)
+ *       - snf_collection_rate (what % they actually collect)
+ *       PatientPay success story metrics for projections:
+ *       - 47% AR days reduction (Lake Washington PT)
+ *       - 40% bad debt reduction (Encore)
+ *       - 2X collections improvement (IRG, Alpine)
  * @param {Object} formData - { bedCount, avgMonthlyRate }
  * @param {Object} answers - User answers
  * @returns {Object|null} - Insights or null if insufficient data
@@ -3051,88 +3086,101 @@ function calculateInsights(formData, answers) {
   const { bedCount, avgMonthlyRate } = formData;
   const segment = answers['facility_type'];
 
-  // V4.9: SNF uses enhanced payer mix inputs for precise calculations
+  // V4.11: SNF uses direct financial inputs
   const isSNF = segment === 'SNF';
   const snfAnnualPatients = answers['snf_annual_patients'];
-  const snfPayerMix = answers['snf_payer_mix']; // V4.9: 3-field input
-  const snfCollectionRate = answers['snf_collection_rate']; // V4.9: Slider input
-  // V4.10: REMOVED snf_primary_challenge (Option A simplification)
+  const snfMonthlyPatientBilling = answers['snf_monthly_patient_billing']; // V4.11: Direct dollar input
+  const snfPatientARDays = answers['snf_patient_ar_days']; // V4.11: AR days for patient balances
+  const snfCollectionRate = answers['snf_collection_rate']; // Collection rate slider
 
   // For non-SNF, require bedCount and avgMonthlyRate
   if (!isSNF && (!bedCount || !avgMonthlyRate)) return null;
-  // For SNF, we can work with just diagnostic questions (but bedCount helps)
-  if (isSNF && !bedCount && !snfAnnualPatients) return null;
+  // For SNF, we can work with monthly billing or annual patients
+  if (isSNF && !snfMonthlyPatientBilling && !snfAnnualPatients && !bedCount) return null;
 
   const occupancyRates = { IL: 0.92, AL: 0.877, SL: 0.88, MC: 0.87, SNF: 0.833, CCRC: 0.88 };
   const occupancyRate = occupancyRates[segment] || 0.85;
 
-  // V4.9: SNF-specific calculations with enhanced payer mix
+  // V4.11: SNF-specific calculations with direct financial inputs
   let occupiedBeds, monthlyRevenue, annualRevenue, dailyRevenue;
   let privatePayRevenue = 0;
-  let privatePayPct = 0;
-  let medicarePct = 0;
-  let medicaidPct = 0;
-  let annualPatients = 0;
   let collectionRate = 75; // Default
-  // V4.9: Exact patient counts by payer type
-  let medicarePatients = 0;
-  let medicaidPatients = 0;
-  let privatePayPatients = 0;
+  let annualPatients = 0;
+
+  // V4.11: PatientPay Success Story Metrics
+  const PATIENTPAY_METRICS = {
+    arDaysReduction: 0.47,        // 47% reduction (Lake Washington: 45→20 days)
+    badDebtReduction: 0.40,       // 40% reduction (Encore)
+    collectionsImprovement: 2.0,  // 2X collections (IRG, Alpine)
+    first30DaysImprovement: 0.25, // 25% more in first 30 days (IRG)
+    textToPayRate: 0.60,          // 60% text-to-pay rate (IRG)
+    industryTextToPayRate: 0.43,  // 43% industry average
+    digitalAdoption: 0.90,        // 90% digital adoption (Encore)
+  };
+
+  // V4.11: SNF Financial Impact Variables
+  let snfMonthlyBilling = 0;
+  let snfAnnualBilling = 0;
+  let snfCashInAR = 0;
+  let snfCurrentARDays = 60; // Default
+  let snfProjectedARDays = 0;
+  let snfCashFreedByARReduction = 0;
+  let snfCurrentBadDebt = 0;
+  let snfBadDebtSavings = 0;
+  let snfTotalAnnualImpact = 0;
 
   if (isSNF) {
-    // SNF uses diagnostic questions for more accurate insights
-    occupiedBeds = bedCount ? Math.round(bedCount * occupancyRate) : 100; // Default 100 if not provided
-    annualPatients = snfAnnualPatients || (occupiedBeds * 3); // SNF avg ~3 patients per bed per year
-
-    // V4.9: Parse payer mix from 3-field input
-    if (snfPayerMix && typeof snfPayerMix === 'object') {
-      medicarePct = snfPayerMix.medicare_pct || 15;
-      medicaidPct = snfPayerMix.medicaid_pct || 60;
-      privatePayPct = snfPayerMix.private_pay_pct || 25;
+    // V4.11: Use direct monthly billing input if provided
+    if (snfMonthlyPatientBilling && snfMonthlyPatientBilling > 0) {
+      snfMonthlyBilling = snfMonthlyPatientBilling;
     } else {
-      // Fallback to industry averages
-      medicarePct = 14;
-      medicaidPct = 60;
-      privatePayPct = 26;
+      // Fallback calculation based on patients or beds
+      const SNF_CONSTANTS = {
+        dailyRate: 305,
+        avgStayDays: 28,
+      };
+      occupiedBeds = bedCount ? Math.round(bedCount * occupancyRate) : 100;
+      annualPatients = snfAnnualPatients || (occupiedBeds * 3);
+      const privatePayPct = 0.25; // Industry average
+      const privatePayPatients = Math.round(annualPatients * privatePayPct);
+      const annualPatientResponsibility = privatePayPatients * SNF_CONSTANTS.dailyRate * SNF_CONSTANTS.avgStayDays;
+      snfMonthlyBilling = Math.round(annualPatientResponsibility / 12);
     }
 
-    // V4.9: Collection rate from slider
+    snfAnnualBilling = snfMonthlyBilling * 12;
+
+    // V4.11: AR days from user input or default
+    snfCurrentARDays = snfPatientARDays || 60;
+
+    // V4.11: Collection rate from slider
     collectionRate = snfCollectionRate || 75;
 
-    // SNF Constants (from Claude.ai spec, validated against industry data)
-    const SNF_CONSTANTS = {
-      dailyRate: 305,              // Semi-private room average
-      avgStayDays: 28,             // Average stay
-      targetARDays: 30,            // Best practice
-      targetCollectionRate: 90,   // 90%
-      cardFeeRate: 0.025,          // 2.5%
-    };
+    // V4.11: Calculate Cash Stuck in AR
+    // Formula: (Monthly Billing × AR Days) / 30
+    snfCashInAR = Math.round((snfMonthlyBilling * snfCurrentARDays) / 30);
 
-    // V4.9: Calculate exact patient counts by payer type
-    // e.g., 400 patients × 25% private pay = 100 private pay patients
-    medicarePatients = Math.round(annualPatients * (medicarePct / 100));
-    medicaidPatients = Math.round(annualPatients * (medicaidPct / 100));
-    privatePayPatients = Math.round(annualPatients * (privatePayPct / 100));
+    // V4.11: Calculate Projected AR Days with PatientPay (47% reduction)
+    snfProjectedARDays = Math.round(snfCurrentARDays * (1 - PATIENTPAY_METRICS.arDaysReduction));
 
-    // Calculate annual patient responsibility revenue using precise payer mix
-    // Annual Revenue = Private Pay Patients × Daily Rate × Avg Stay Days
-    const annualPatientResponsibility = privatePayPatients * SNF_CONSTANTS.dailyRate *
-                                         SNF_CONSTANTS.avgStayDays;
+    // V4.11: Calculate Cash Freed by AR Reduction
+    const projectedCashInAR = Math.round((snfMonthlyBilling * snfProjectedARDays) / 30);
+    snfCashFreedByARReduction = snfCashInAR - projectedCashInAR;
 
-    // Also calculate total revenue for context
-    const snfDailyRate = avgMonthlyRate ? (avgMonthlyRate / 30) : SNF_CONSTANTS.dailyRate;
-    monthlyRevenue = occupiedBeds * snfDailyRate * 30;
-    annualRevenue = monthlyRevenue * 12;
-    dailyRevenue = annualRevenue / 365;
+    // V4.11: Calculate Bad Debt Impact
+    // Industry typical: 3% bad debt when AR is high
+    const badDebtRate = snfCurrentARDays > 45 ? 0.03 : 0.02;
+    snfCurrentBadDebt = Math.round(snfAnnualBilling * badDebtRate);
+    snfBadDebtSavings = Math.round(snfCurrentBadDebt * PATIENTPAY_METRICS.badDebtReduction);
 
-    // Private pay revenue (patient responsibility portion)
-    privatePayRevenue = Math.round(annualPatientResponsibility);
+    // V4.11: Total Annual Impact
+    snfTotalAnnualImpact = snfCashFreedByARReduction + snfBadDebtSavings;
 
-    // V4.9: Collection gap calculation
-    // How much are they leaving on the table with current collection rate?
-    const actualCollected = privatePayRevenue * (collectionRate / 100);
-    const targetCollected = privatePayRevenue * (SNF_CONSTANTS.targetCollectionRate / 100);
-    const collectionGap = Math.round(targetCollected - actualCollected);
+    // Set standard variables for compatibility
+    monthlyRevenue = snfMonthlyBilling;
+    annualRevenue = snfAnnualBilling;
+    dailyRevenue = snfAnnualBilling / 365;
+    privatePayRevenue = snfAnnualBilling;
+    occupiedBeds = bedCount ? Math.round(bedCount * occupancyRate) : Math.round(snfMonthlyBilling / 2500); // Estimate beds from billing
 
   } else {
     // Standard calculations for senior living
@@ -3142,11 +3190,11 @@ function calculateInsights(formData, answers) {
     dailyRevenue = annualRevenue / 365;
   }
 
-  // AR-related calculations (primarily for SNF)
-  // V4.10: SNF uses industry benchmark (56 days typical) instead of removed snf_ar_days question
+  // AR-related calculations
+  // V4.11: SNF uses user-provided AR days; non-SNF uses industry benchmarks
   let arDays = 45; // Default
-  if (segment === 'SNF') {
-    arDays = 56; // V4.10: Industry typical for SNF
+  if (isSNF) {
+    arDays = snfCurrentARDays; // V4.11: From user input
   } else if (segment === 'CCRC') {
     arDays = 18; // CCRC benchmark
   } else if (segment === 'SL') {
@@ -3155,13 +3203,21 @@ function calculateInsights(formData, answers) {
     arDays = 50;
   }
 
-  const cashInAR = Math.round(dailyRevenue * arDays);
-  // V4.5: Segment-specific target AR days based on industry benchmarks
-  // SNF: 40 days (from typical 56-100+), CCRC: 19 days (already best in industry)
-  // SL: 35 days (from typical 30-60), MC: 40 days (from typical 40-50)
-  const targetArDaysMap = { SNF: 40, CCRC: 19, SL: 35, MC: 40 };
+  // V4.11: For SNF, use calculated values; for others, use standard calculation
+  let cashInAR, potentialFreedCash;
+  if (isSNF) {
+    cashInAR = snfCashInAR;
+    potentialFreedCash = snfCashFreedByARReduction;
+  } else {
+    cashInAR = Math.round(dailyRevenue * arDays);
+    const targetArDaysMap = { SNF: 35, CCRC: 19, SL: 35, MC: 40 };
+    const targetArDays = targetArDaysMap[segment] || 35;
+    potentialFreedCash = arDays > targetArDays ? Math.round(dailyRevenue * (arDays - targetArDays)) : 0;
+  }
+
+  // V4.11: Target AR days (for display and comparison)
+  const targetArDaysMap = { SNF: 35, CCRC: 19, SL: 35, MC: 40 };
   const targetArDays = targetArDaysMap[segment] || 35;
-  const potentialFreedCash = arDays > targetArDays ? Math.round(dailyRevenue * (arDays - targetArDays)) : 0;
 
   // Staff time calculations
   const billingFTEs = Math.max(1, Math.round((bedCount || occupiedBeds) / 50));
@@ -3314,51 +3370,49 @@ function calculateInsights(formData, answers) {
     annualCardFeesAbsorbed
   };
 
-  // V4.9/V4.10: Add SNF-specific insights with enhanced calculations
-  // V4.10: Simplified - removed snf_card_volume, snf_card_fees, snf_clean_claims, snf_aged_ar
+  // V4.11: Add SNF-specific insights with financial impact calculations
   if (isSNF) {
-    // V4.9: Calculate collection gap (revenue left on table)
+    // V4.11: Calculate collection gap (revenue left on table)
     const targetCollectionRate = 90; // Target 90%
     const actualCollected = privatePayRevenue * (collectionRate / 100);
     const targetCollected = privatePayRevenue * (targetCollectionRate / 100);
     const collectionGap = Math.round(Math.max(0, targetCollected - actualCollected));
 
-    // V4.9: Autopay calculation using SNF-specific questions
-    // V4.10: Updated for simplified Yes/No autopay question
+    // V4.11: Autopay calculation using SNF-specific questions
     const snfAutopay = answers['snf_autopay'];
     const snfAutopayEnrollment = answers['snf_autopay_enrollment'] || 15;
     const snfHasAutopay = snfAutopay === 'yes';
 
     return {
       ...baseInsights,
-      // V4.9: Enhanced payer mix data (percentages)
-      medicarePct,
-      medicaidPct,
-      privatePayPct,
-      // V4.9: Exact patient counts by payer type (from annual_patients × payer_mix)
-      // e.g., 400 patients × 25% = 100 private pay patients
+      // V4.11: Direct financial inputs from user
+      snfMonthlyBilling,
+      snfAnnualBilling,
+      snfCurrentARDays,
+      // V4.11: PatientPay Impact Projections
+      snfProjectedARDays,
+      snfCashInAR,
+      snfCashFreedByARReduction,
+      snfCurrentBadDebt,
+      snfBadDebtSavings,
+      snfTotalAnnualImpact,
+      // V4.11: PatientPay success metrics used
+      patientPayMetrics: PATIENTPAY_METRICS,
+      // Legacy fields for compatibility
       annualPatients,
-      medicarePatients,
-      medicaidPatients,
-      privatePayPatients,
-      // V4.9: Revenue calculations based on exact patient counts
-      privatePayRevenue, // privatePayPatients × $305/day × 28 days
-      avgRevenuePerPrivatePayPatient: privatePayPatients > 0 ?
-        Math.round(privatePayRevenue / privatePayPatients) : 0,
-      // SNF context
+      privatePayRevenue,
       snfMultiGuarantorStatus,
-      // V4.9: Collection rate from slider (not categorical)
+      // Collection rate data
       collectionRate,
-      collectionGap, // Revenue left on table due to collection inefficiency
+      collectionGap,
       targetCollectionRate,
-      // V4.9: Autopay data
+      // Autopay data
       snfHasAutopay,
       snfAutopayEnrollment,
-      // V4.10: Total financial opportunity = collection gap only (simplified)
-      totalFinancialOpportunity: potentialFreedCash + collectionGap,
-      // Calculate potential private pay improvement (15pp collection rate improvement)
-      privatePayCollectionOpportunity: privatePayRevenue > 0 ?
-        Math.round(privatePayRevenue * 0.15) : 0
+      // V4.11: Total financial opportunity (AR reduction + bad debt savings + collection gap)
+      totalFinancialOpportunity: snfCashFreedByARReduction + snfBadDebtSavings + collectionGap,
+      // Collection improvement opportunity
+      privatePayCollectionOpportunity: collectionGap
     };
   }
 
@@ -4035,70 +4089,145 @@ async function generatePDFReport(formData, answers, scores) {
     y += 100;
   }
 
-  // V4.9: SNF Patient Breakdown - calculated from exact inputs
-  if (segment === 'SNF' && insights && insights.annualPatients > 0) {
+  // V4.11: SNF Financial Impact - using direct billing inputs
+  if (segment === 'SNF' && insights && insights.snfMonthlyBilling > 0) {
     setColor(colors.textDark);
     doc.setFontSize(fontSize.xl);
     doc.setFont('helvetica', 'bold');
-    doc.text('Your Patient Breakdown', margin, y);
+    doc.text('Your Patient Billing', margin, y);
     y += spacing.md;
 
-    // Patient counts by payer type
-    const patientStats = [
-      { label: 'Medicare', count: insights.medicarePatients || 0, pct: insights.medicarePct || 0, color: colors.secondary },
-      { label: 'Medicaid', count: insights.medicaidPatients || 0, pct: insights.medicaidPct || 0, color: [139, 92, 246] },
-      { label: 'Private Pay', count: insights.privatePayPatients || 0, pct: insights.privatePayPct || 0, color: colors.success }
-    ];
-
-    const patientBoxWidth = (contentWidth - 24) / 3;
-    patientStats.forEach((stat, i) => {
-      const boxX = margin + (i * (patientBoxWidth + 12));
-      const isPrivatePay = stat.label === 'Private Pay';
-
-      setFillColor(isPrivatePay ? [240, 253, 244] : colors.bgLight);
-      doc.roundedRect(boxX, y, patientBoxWidth, 70, radius.md, radius.md, 'F');
-
-      setFillColor(stat.color);
-      doc.roundedRect(boxX, y, patientBoxWidth, 3, radius.md, radius.md, 'F');
-
-      setColor(stat.color);
-      doc.setFontSize(28);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.count.toLocaleString(), boxX + spacing.md, y + 32);
-
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.label, boxX + spacing.md, y + 50);
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.sm);
-      doc.text(`${stat.pct}%`, boxX + spacing.md, y + 64);
-    });
-
-    y += 85;
-
-    // Private pay revenue calculation
+    // Monthly billing highlight
     setFillColor([240, 249, 255]);
-    doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
-    setFillColor(colors.success);
-    doc.roundedRect(margin, y, 4, 55, radius.sm, radius.sm, 'F');
+    doc.roundedRect(margin, y, contentWidth, 65, radius.md, radius.md, 'F');
+    setFillColor(colors.secondary);
+    doc.roundedRect(margin, y, 5, 65, radius.sm, radius.sm, 'F');
+
+    setColor(colors.secondary);
+    doc.setFontSize(36);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfMonthlyBilling), margin + spacing.lg, y + 38);
 
     setColor(colors.textDark);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${insights.privatePayPatients?.toLocaleString()} private pay patients × $305/day × 28 days =`, margin + spacing.lg, y + 22);
-
-    setColor(colors.success);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.privatePayRevenue), margin + spacing.lg, y + 44);
+    doc.text('/month in patient responsibility', margin + 160, y + 38);
 
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
-    doc.text('annual patient responsibility', margin + 150, y + 44);
+    doc.text(`(${formatCurrency(insights.snfAnnualBilling)} annually)`, margin + spacing.lg, y + 55);
 
-    y += 75;
+    y += 80;
+
+    // Current state - Cash in AR and Bad Debt
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CURRENT STATE', margin, y);
+    y += spacing.md;
+
+    const currentStateWidth = (contentWidth - 12) / 2;
+
+    // Cash stuck in AR
+    setFillColor([254, 242, 242]); // Light red
+    doc.roundedRect(margin, y, currentStateWidth, 75, radius.md, radius.md, 'F');
+    setFillColor(colors.error);
+    doc.roundedRect(margin, y, currentStateWidth, 4, radius.md, radius.md, 'F');
+
+    setColor(colors.error);
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfCashInAR), margin + spacing.md, y + 35);
+
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Cash stuck in A/R', margin + spacing.md, y + 52);
+
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.text(`${insights.snfCurrentARDays} days to collect`, margin + spacing.md, y + 66);
+
+    // Annual bad debt risk
+    const col2X = margin + currentStateWidth + 12;
+    setFillColor([255, 251, 235]); // Light amber
+    doc.roundedRect(col2X, y, currentStateWidth, 75, radius.md, radius.md, 'F');
+    setFillColor(colors.warning);
+    doc.roundedRect(col2X, y, currentStateWidth, 4, radius.md, radius.md, 'F');
+
+    setColor(colors.warning);
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfCurrentBadDebt), col2X + spacing.md, y + 35);
+
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Annual bad debt risk', col2X + spacing.md, y + 52);
+
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.text('~3% of patient billing', col2X + spacing.md, y + 66);
+
+    y += 90;
+
+    // PatientPay Impact
+    setFillColor([240, 253, 244]); // Light green
+    doc.roundedRect(margin, y, contentWidth, 120, radius.lg, radius.lg, 'F');
+    setFillColor(colors.success);
+    doc.roundedRect(margin, y, contentWidth, 5, radius.lg, radius.lg, 'F');
+
+    setColor(colors.success);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('WITH PATIENTPAY', margin + spacing.lg, y + 24);
+
+    // Impact metrics in columns
+    const impactColWidth = (contentWidth - 48) / 3;
+    const impactY = y + 45;
+
+    // Cash freed
+    setColor(colors.success);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfCashFreedByARReduction), margin + spacing.lg, impactY);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.sm);
+    doc.text('Cash freed', margin + spacing.lg, impactY + 16);
+
+    // AR days reduction
+    setColor(colors.success);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${insights.snfCurrentARDays} → ${insights.snfProjectedARDays}`, margin + spacing.lg + impactColWidth, impactY);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.sm);
+    doc.text('AR days (47% faster)', margin + spacing.lg + impactColWidth, impactY + 16);
+
+    // Bad debt savings
+    setColor(colors.success);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfBadDebtSavings), margin + spacing.lg + impactColWidth * 2, impactY);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.sm);
+    doc.text('Bad debt reduced', margin + spacing.lg + impactColWidth * 2, impactY + 16);
+
+    // Total annual impact
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.text('Total Annual Impact:', margin + spacing.lg, impactY + 45);
+    setColor(colors.success);
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(insights.snfTotalAnnualImpact) + '+', margin + 140, impactY + 45);
+
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.xs);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Based on PatientPay customer results: 47% AR reduction, 40% bad debt reduction', margin + spacing.lg, impactY + 62);
+
+    y += 135;
   }
 
   // Financial insights - V4.9: Improved card layout
