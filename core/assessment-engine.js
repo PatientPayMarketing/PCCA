@@ -4978,10 +4978,11 @@ async function generatePDFReport(formData, answers, scores) {
     const pillarY = y + 52;
     const pillarWidth = (contentWidth - 50) / 3;
 
+    // V4.12.1: Renamed "Edge" to "Preference" for softer, less sales-y language
     const pillars = [
       { title: 'Efficiency', stat: '96% faster', color: colors.secondary },
       { title: 'Experience', stat: '72% fewer misses', color: [139, 92, 246] }, // Purple
-      { title: 'Edge', stat: '67% prefer modern', color: colors.accent }
+      { title: 'Preference', stat: '67% choose modern', color: colors.accent }
     ];
 
     pillars.forEach((pillar, i) => {
