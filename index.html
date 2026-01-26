@@ -1596,7 +1596,7 @@
               </div>
             )}
 
-            {/* Segment context card */}
+            {/* Segment context card - V4.12.2: SNF no longer shows Payer Mix (moved away from that input) */}
             {segmentData && (
               <div className="glass-card" style={{
                 padding: 24, marginBottom: 32, textAlign: 'left',
@@ -1604,10 +1604,13 @@
                 animation: 'fadeInUp 0.6s ease-out 0.4s both'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Payer Mix</div>
-                    <div style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 600 }}>{segmentData.characteristics.payerMix}</div>
-                  </div>
+                  {/* V4.12.2: Hide Payer Mix for SNF - we no longer collect this */}
+                  {segment !== 'SNF' && (
+                    <div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Payer Mix</div>
+                      <div style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 600 }}>{segmentData.characteristics.payerMix}</div>
+                    </div>
+                  )}
                   <div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Typical AR Days</div>
                     <div style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 600 }}>{segmentData.characteristics.arDaysRange}</div>
@@ -1620,55 +1623,7 @@
               </div>
             )}
 
-            {/* V4.9: SNF Patient Breakdown - calculated from exact inputs */}
-            {segment === 'SNF' && insights && insights.annualPatients > 0 && (
-              <div className="glass-card" style={{
-                padding: 28, marginBottom: 32, textAlign: 'center',
-                background: 'linear-gradient(135deg, rgba(60,143,199,0.1), rgba(139,92,246,0.05))',
-                border: '1px solid rgba(60,143,199,0.2)',
-                animation: 'fadeInUp 0.6s ease-out 0.5s both'
-              }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 20 }}>
-                  Your Patient Breakdown
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
-                  <div>
-                    <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: '#3c8fc7' }}>
-                      {insights.medicarePatients?.toLocaleString() || 0}
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Medicare</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{insights.medicarePct}%</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: '#8B5CF6' }}>
-                      {insights.medicaidPatients?.toLocaleString() || 0}
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Medicaid</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{insights.medicaidPct}%</div>
-                  </div>
-                  <div style={{ background: 'rgba(16,185,129,0.1)', borderRadius: 12, padding: 12 }}>
-                    <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981' }}>
-                      {insights.privatePayPatients?.toLocaleString() || 0}
-                    </div>
-                    <div style={{ fontSize: 13, color: '#10B981', fontWeight: 600, marginTop: 4 }}>Private Pay</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{insights.privatePayPct}%</div>
-                  </div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    <strong style={{ color: '#10B981' }}>{insights.privatePayPatients?.toLocaleString()} private pay patients</strong> × $305/day × 28 days avg stay
-                  </div>
-                  <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "'Archivo'", color: 'var(--text-primary)', marginTop: 8 }}>
-                    = ${insights.privatePayRevenue?.toLocaleString()} annual patient responsibility
-                  </div>
-                  {insights.collectionGap > 0 && (
-                    <div style={{ fontSize: 13, color: '#F59E0B', marginTop: 8 }}>
-                      At {insights.collectionRate}% collection rate, you're leaving ~${insights.collectionGap?.toLocaleString()} on the table
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* V4.12.2: Removed SNF Patient Breakdown card - payer mix input was removed in V4.11 */}
 
             {/* Category scores with benchmark indicators */}
             {(() => {
