@@ -1,12 +1,20 @@
 /**
  * PatientPay Senior Living Payment Readiness Assessment
- * CORE ENGINE - Version 4.12.2
+ * CORE ENGINE - Version 4.13
  *
  * This file contains all business logic, calculations, and data.
  * It is UI-agnostic and can be used with any presentation layer.
  *
  * DO NOT MODIFY unless changing business logic, scoring, or questions.
  * UI changes should be made in the UI layer files only.
+ *
+ * V4.13 Changes (Exec Team Review):
+ * - SPLIT: snf_payment_methods into two questions:
+ *   - snf_payment_channels: How patients can pay (onsite, portal, text-to-pay, phone)
+ *   - snf_payment_types: What payment types accepted (credit cards, debit, ACH, checks, cash)
+ * - snf_convenience_fee now conditional on snf_payment_types includes credit_cards
+ * - REMOVED: "We haven't needed to do this" option from statement_recipients (SL/MC/CCRC)
+ * - Updated all scoring, recommendations, and insights to use new question IDs
  *
  * V4.12.2 Changes (SNF Payment Plans):
  * - NEW: snf_payment_plans question - asks about self-service payment plan capability
@@ -44,10 +52,16 @@
  * - RENAMED: SNF categories from "Operational Readiness" to "Collection Efficiency"
  * - SNF questions focused on patient responsibility collection
  *
+ * V4.13 Changes (SNF Payment Question Split):
+ * - SPLIT: snf_payment_methods into two questions:
+ *   - snf_payment_channels: How patients can pay (onsite, portal, text-to-pay, phone)
+ *   - snf_payment_types: What payment types accepted (credit cards, debit, ACH, checks, cash)
+ * - snf_convenience_fee now conditional on snf_payment_types includes credit_cards
+ * - Updated all references throughout scoring, recommendations, and insights
+ *
  * V4.9 Changes (SNF Assessment Overhaul - retained concepts):
  * - snf_payer_mix: 3-field input for precise Medicare/Medicaid/Private Pay %
  * - snf_collection_rate: Slider input (40-100%)
- * - snf_payment_methods: Multi-select with additive scoring
  * - snf_autopay: Standalone with conditional enrollment slider
  * - SNF financial calculations use exact patient counts from payer mix
  *
@@ -365,7 +379,9 @@ function getPerformanceVsBenchmark(score, benchmark) {
 //
 // 2. COLLECTION EFFICIENCY (scored):
 //    - snf_collection_rate (slider 40-100%)
-//    - snf_payment_methods (multi-select)
+//    - snf_payment_channels (multi-select: onsite, portal, text-to-pay, phone)
+//    - snf_payment_types (multi-select: credit cards, debit, ACH, checks, cash)
+//    - snf_convenience_fee (conditional on credit cards)
 //    - snf_autopay + snf_autopay_enrollment (conditional)
 //
 // 3. FAMILY EXPERIENCE (scored):
@@ -666,6 +682,7 @@ const Questions = [
 
   // FAM2: Statement Recipients (Multi-Guarantor Capability)
   // V4.6: SNF excluded - they have separate flow (snf_multi_guarantor covers this)
+  // V4.13: Removed "We haven't needed to do this" option - not applicable given flow context
   {
     id: 'statement_recipients',
     category: "Resident & Family Experience",
@@ -679,12 +696,11 @@ const Questions = [
     },
     options: [
       { label: "No, we can only send statements to one person", score: 20 },
-      { label: "We haven't needed to do this", score: 40 },
       { label: "We can CC multiple people on the same statement", score: 50 },
       { label: "Yes, each family member gets their own statement for their portion", score: 100 }
     ],
     insight: {
-      trigger: ["No, we can only send statements to one person", "We haven't needed to do this"],
+      trigger: ["No, we can only send statements to one person"],
       message: "When one family member receives the bill and has to chase siblings for their share, 37% of payments get missed. Individual statements eliminate this coordination burden.",
       proofPoint: "PatientPay's multi-guarantor billing sends individual statements with individual payment preferences per family member"
     }
@@ -693,7 +709,7 @@ const Questions = [
   // FAM3: Payment Methods Accepted
   // V4.2: Cross-category scoring - Family (70%) + Competitive (30%)
   // Note: autopay_rate and convenience_fee questions are conditional on this answer
-  // V4.9: SNF has its own multi-select payment question (snf_payment_methods)
+  // V4.13: SNF has its own split questions (snf_payment_channels + snf_payment_types)
   {
     id: 'payment_methods',
     category: "Resident & Family Experience",
@@ -704,7 +720,7 @@ const Questions = [
     ],
     question: "Which payment methods do you currently accept from families?",
     type: "multi",
-    segments: ['SL', 'MC', 'CCRC'], // V4.9: SNF uses snf_payment_methods
+    segments: ['SL', 'MC', 'CCRC'], // V4.13: SNF uses snf_payment_channels + snf_payment_types
     options: [
       { label: "Paper checks / money orders", score: 10 },
       { label: "ACH / bank transfer", score: 20 },
@@ -786,14 +802,14 @@ const Questions = [
   },
 
   // FAM4: Billing Statement Delivery
-  // V4.9: SNF excluded - statement delivery covered through snf_payment_methods (includes portal, text-to-pay)
+  // V4.13: SNF excluded - statement delivery covered through snf_payment_channels (includes portal, text-to-pay)
   {
     id: 'statement_delivery',
     category: "Resident & Family Experience",
     categoryIndex: 1,
     question: "How do you deliver billing statements to families?",
     type: "multi",
-    segments: ['SL', 'MC', 'CCRC'], // V4.9: SNF excluded
+    segments: ['SL', 'MC', 'CCRC'], // V4.13: SNF excluded
     options: [
       { label: "Paper mail", score: 10 },
       { label: "Email", score: 30 },
@@ -900,44 +916,80 @@ const Questions = [
   // SNF FAMILY/PATIENT EXPERIENCE (V4.9 Enhanced)
   // ========================================
 
-  // SNF-FAM1: Payment Methods Multi-Select (V4.10 - cross-category scoring)
-  // V4.10: Digital payment methods improve both collection efficiency AND family experience
-  // Credit cards, debit cards, portal, text-to-pay count for both categories
+  // V4.13: Split payment question into two parts:
+  // 1. Payment CHANNELS (how they can pay) - portal, text-to-pay, onsite, phone
+  // 2. Payment TYPES (what methods accepted) - credit cards, debit, ACH, checks, cash
+
+  // SNF-PAY1: Payment Channels (V4.13 - how patients can pay you)
+  // Focus on accessibility and convenience of payment collection
   {
-    id: 'snf_payment_methods',
-    category: "Collection Efficiency", // Primary category (display label)
-    categoryIndex: 0, // Used for display, but categoryWeights determines actual scoring
-    // V4.10: Cross-category scoring - 70% Collection Efficiency, 30% Family Experience
-    // Digital payment options make it easier for families to pay AND improve collections
+    id: 'snf_payment_channels',
+    category: "Collection Efficiency",
+    categoryIndex: 0,
     categoryWeights: [
       { index: 0, weight: 0.70 }, // Collection Efficiency (primary)
       { index: 1, weight: 0.30 }  // Family Experience (convenience for families)
     ],
-    question: "Which payment methods do you accept from patients and families?",
-    subtext: "Select all that apply for the private pay portion (copays, deductibles, self-pay)",
-    type: "multi", // Multi-select
+    question: "How can your patients and families pay you?",
+    subtext: "Select all payment channels available for the private pay portion",
+    type: "multi",
     segments: ['SNF'],
     options: [
-      { label: "Credit cards", value: "credit_cards", points: 25 },
-      { label: "Debit cards", value: "debit_cards", points: 20 },
-      { label: "ACH / bank transfer", value: "ach", points: 15 },
-      { label: "Online payment portal", value: "portal", points: 15 },
-      { label: "Text-to-pay", value: "text_to_pay", points: 20 },
-      { label: "Paper checks", value: "checks", points: 5 },
-      { label: "Money orders / cash", value: "cash", points: 0 }
+      { label: "Onsite / in-person", value: "onsite", points: 10 },
+      { label: "Online payment portal", value: "portal", points: 30 },
+      { label: "Text-to-pay", value: "text_to_pay", points: 35 },
+      { label: "Call in via phone", value: "phone", points: 15 }
     ],
-    // V4.9: Additive scoring, capped at 100
     scoring: (selected) => {
       if (!selected || !Array.isArray(selected)) return 10;
       const totalPoints = selected.reduce((sum, opt) => {
         const option = [
-          { value: "credit_cards", points: 25 },
-          { value: "debit_cards", points: 20 },
-          { value: "ach", points: 15 },
-          { value: "portal", points: 15 },
-          { value: "text_to_pay", points: 20 },
-          { value: "checks", points: 5 },
-          { value: "cash", points: 0 }
+          { value: "onsite", points: 10 },
+          { value: "portal", points: 30 },
+          { value: "text_to_pay", points: 35 },
+          { value: "phone", points: 15 }
+        ].find(o => o.value === opt);
+        return sum + (option ? option.points : 0);
+      }, 0);
+      return Math.min(100, totalPoints);
+    },
+    insight: {
+      trigger: (selected) => !selected || (!selected.includes('portal') && !selected.includes('text_to_pay')),
+      message: "Digital payment channels like text-to-pay achieve 60% payment rates vs 43% for traditional methods. Meeting families where they are increases collections.",
+      proofPoint: "PatientPay text-to-pay: 60% payment rate vs 43% industry average"
+    }
+  },
+
+  // SNF-PAY2: Payment Types (V4.13 - what payment methods accepted)
+  // Focus on payment method acceptance
+  {
+    id: 'snf_payment_types',
+    category: "Collection Efficiency",
+    categoryIndex: 0,
+    categoryWeights: [
+      { index: 0, weight: 0.70 }, // Collection Efficiency (primary)
+      { index: 1, weight: 0.30 }  // Family Experience (convenience for families)
+    ],
+    question: "Which payment types do you accept from patients and families?",
+    subtext: "Select all payment types accepted",
+    type: "multi",
+    segments: ['SNF'],
+    options: [
+      { label: "Credit cards", value: "credit_cards", points: 30 },
+      { label: "Debit cards", value: "debit_cards", points: 25 },
+      { label: "ACH / bank transfer", value: "ach", points: 20 },
+      { label: "Paper checks", value: "checks", points: 10 },
+      { label: "Money orders / cash", value: "cash", points: 5 }
+    ],
+    scoring: (selected) => {
+      if (!selected || !Array.isArray(selected)) return 10;
+      const totalPoints = selected.reduce((sum, opt) => {
+        const option = [
+          { value: "credit_cards", points: 30 },
+          { value: "debit_cards", points: 25 },
+          { value: "ach", points: 20 },
+          { value: "checks", points: 10 },
+          { value: "cash", points: 5 }
         ].find(o => o.value === opt);
         return sum + (option ? option.points : 0);
       }, 0);
@@ -950,8 +1002,8 @@ const Questions = [
     }
   },
 
-  // SNF Convenience Fee Question (V4.10 - conditional on credit card acceptance)
-  // Shows only when they select credit_cards in snf_payment_methods
+  // SNF Convenience Fee Question (V4.13 - conditional on credit card acceptance)
+  // Shows only when they select credit_cards in snf_payment_types
   // Passing fees is a positive for operations (cost savings)
   {
     id: 'snf_convenience_fee',
@@ -963,8 +1015,8 @@ const Questions = [
     segments: ['SNF'],
     isSubQuestion: true,
     conditional: {
-      questionId: 'snf_payment_methods',
-      showIfIncludes: 'credit_cards' // V4.10: Show if credit_cards is in the multi-select array
+      questionId: 'snf_payment_types',
+      showIfIncludes: 'credit_cards' // V4.13: Show if credit_cards is in snf_payment_types
     },
     options: [
       { label: "We pass processing fees to patients as a convenience fee", value: "pass_through", score: 100 },
@@ -1860,20 +1912,23 @@ const RecommendationDefinitions = [
     segmentSpecific: ['SNF']
   },
   {
-    id: 'expand_snf_payment_methods',
+    id: 'expand_snf_payment_options',
     category: 'family',
     title: 'Expand Digital Payment Options',
     trigger: (answers) => {
-      const methods = answers['snf_payment_methods'] || [];
+      // V4.13: Check both channels and types
+      const channels = answers['snf_payment_channels'] || [];
+      const types = answers['snf_payment_types'] || [];
       return answers['facility_type'] === 'SNF' &&
-             (!methods.includes('credit_cards') || !methods.includes('text_to_pay') || !methods.includes('portal'));
+             (!types.includes('credit_cards') || !channels.includes('text_to_pay') || !channels.includes('portal'));
     },
     currentState: (answers) => {
-      const methods = answers['snf_payment_methods'] || [];
+      const channels = answers['snf_payment_channels'] || [];
+      const types = answers['snf_payment_types'] || [];
       const missing = [];
-      if (!methods.includes('credit_cards')) missing.push('credit cards');
-      if (!methods.includes('text_to_pay')) missing.push('text-to-pay');
-      if (!methods.includes('portal')) missing.push('online portal');
+      if (!types.includes('credit_cards')) missing.push('credit cards');
+      if (!channels.includes('text_to_pay')) missing.push('text-to-pay');
+      if (!channels.includes('portal')) missing.push('online portal');
       return `Missing key payment options: ${missing.join(', ')}`;
     },
     targetState: "Full digital payment suite: cards, text-to-pay, and 24/7 online portal",
@@ -1890,14 +1945,15 @@ const RecommendationDefinitions = [
     basePriority: 80,
     segmentSpecific: ['SNF']
   },
-  // V4.10: SNF convenience fee pass-through (conditional on credit card acceptance)
+  // V4.13: SNF convenience fee pass-through (conditional on credit card acceptance)
   {
     id: 'enable_snf_convenience_fees',
     category: 'operations',
     title: 'Enable Convenience Fee Pass-Through',
     trigger: (answers) => {
-      const snfPaymentMethods = answers['snf_payment_methods'] || [];
-      const acceptsCards = snfPaymentMethods.includes('credit_cards');
+      // V4.13: Check snf_payment_types for credit cards
+      const snfPaymentTypes = answers['snf_payment_types'] || [];
+      const acceptsCards = snfPaymentTypes.includes('credit_cards');
       const convenienceFee = answers['snf_convenience_fee'];
       // Trigger if they accept cards but are NOT passing fees
       return answers['facility_type'] === 'SNF' &&
@@ -2588,27 +2644,30 @@ const PatientPayProjectionConfig = {
     projectionLogic: 'Math.min(95, current_rate + 15)'
   },
 
-  // V4.9: SNF: Add full digital payment methods
-  snf_add_payment_methods: {
+  // V4.13: SNF: Add full digital payment options (channels + types)
+  snf_add_payment_options: {
     condition: (answers) => {
-      const methods = answers['snf_payment_methods'] || [];
+      // V4.13: Check both channels and types
+      const channels = answers['snf_payment_channels'] || [];
+      const types = answers['snf_payment_types'] || [];
       // Missing key digital options
       return answers['facility_type'] === 'SNF' &&
-             (!methods.includes('credit_cards') || !methods.includes('text_to_pay') || !methods.includes('portal'));
+             (!types.includes('credit_cards') || !channels.includes('text_to_pay') || !channels.includes('portal'));
     },
     categoryImpacts: [5, 20, 0],
     overallImpact: 10,
     description: 'Full digital payment suite: cards, text-to-pay, online portal',
-    questionMapping: ['snf_payment_methods'],
+    questionMapping: ['snf_payment_channels', 'snf_payment_types'],
     sourceRef: 11, // CareGrove - 75% want card options
     segmentSpecific: ['SNF']
   },
 
-  // V4.10: SNF convenience fee pass-through projection
+  // V4.13: SNF convenience fee pass-through projection
   snf_enable_convenience_fees: {
     condition: (answers) => {
-      const methods = answers['snf_payment_methods'] || [];
-      const acceptsCards = methods.includes('credit_cards');
+      // V4.13: Check snf_payment_types for credit cards
+      const types = answers['snf_payment_types'] || [];
+      const acceptsCards = types.includes('credit_cards');
       const fee = answers['snf_convenience_fee'];
       // Trigger if they accept cards but are NOT passing fees
       return answers['facility_type'] === 'SNF' &&
@@ -3391,17 +3450,17 @@ function calculateInsights(formData, answers) {
   const inquiryCost = annualInquiryHours * 25; // $25/hour estimate
 
   // V4.8/V4.9: Credit card fee absorption calculation
-  // V4.10: For SNF, use snf_payment_methods; For non-SNF, use payment_methods and convenience_fee
+  // V4.13: For SNF, use snf_payment_types; For non-SNF, use payment_methods and convenience_fee
   // Show potential savings if NOT passing fees through
   let acceptsCards = false;
   let passingFeesToFamilies = false;
   let cardVolumePct = 0.50; // Default 50% of revenue goes through cards
 
   if (isSNF) {
-    // V4.10: SNF uses multi-select payment methods and conditional convenience fee question
-    const snfPaymentMethods = answers['snf_payment_methods'] || [];
-    acceptsCards = snfPaymentMethods.includes('credit_cards') || snfPaymentMethods.includes('debit_cards');
-    // V4.10: Check SNF convenience fee question (only asked if they accept credit cards)
+    // V4.13: SNF uses snf_payment_types for card acceptance check
+    const snfPaymentTypes = answers['snf_payment_types'] || [];
+    acceptsCards = snfPaymentTypes.includes('credit_cards') || snfPaymentTypes.includes('debit_cards');
+    // V4.13: Check SNF convenience fee question (only asked if they accept credit cards)
     const snfConvenienceFee = answers['snf_convenience_fee'];
     // They're passing fees if they answered "pass_through"
     passingFeesToFamilies = (snfConvenienceFee === 'pass_through');
@@ -5176,10 +5235,11 @@ async function generatePDFReport(formData, answers, scores) {
       weight: weights[1],
       focus: 'Payment flexibility, transparency, and multi-guarantor support',
       keyMetrics: segment === 'SNF' ? [
-        // V4.9: SNF-specific metrics with new question IDs
+        // V4.13: SNF-specific metrics with split payment questions
         { label: 'Split Billing', answer: answers['snf_multi_guarantor'] || 'Not specified' },
         { label: 'Collection Rate', answer: answers['snf_collection_rate'] ? `${answers['snf_collection_rate']}%` : 'Not specified' },
-        { label: 'Payment Methods', answer: Array.isArray(answers['snf_payment_methods']) ? answers['snf_payment_methods'].join(', ') : 'Not specified' }
+        { label: 'Payment Channels', answer: Array.isArray(answers['snf_payment_channels']) ? answers['snf_payment_channels'].join(', ') : 'Not specified' },
+        { label: 'Payment Types', answer: Array.isArray(answers['snf_payment_types']) ? answers['snf_payment_types'].join(', ') : 'Not specified' }
       ] : [
         // V4.4: Non-SNF metrics
         { label: 'Multi-Guarantor Capability', answer: answers['multi_guarantor_capability'] || 'Not specified' },
