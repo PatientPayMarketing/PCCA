@@ -2686,7 +2686,7 @@ function calculatePatientPayProjections(answers, scores) {
 // ============================================
 
 const ResultsFlowV47 = {
-  // Standard flow for SL, MC, CCRC (6 slides)
+  // V4.12.2: Standard flow for SL, MC, CCRC (7 slides - added Market Context)
   standardSlides: [
     {
       id: 0,
@@ -2704,27 +2704,34 @@ const ResultsFlowV47 = {
     },
     {
       id: 2,
+      type: 'market-context',
+      title: 'What Families Are Choosing',
+      description: 'Industry statistics showing family expectations',
+      content: ['family_stats', 'digital_adoption', 'opportunity_window']
+    },
+    {
+      id: 3,
       type: 'opportunities',
       title: 'Your Opportunities',
       description: 'Where you can improve',
       content: ['gap_analysis', 'opportunity_areas', 'quick_wins']
     },
     {
-      id: 3,
+      id: 4,
       type: 'improvements',
       title: 'Actionable Improvements',
       description: 'Top 5 recommendations with projected impact',
       content: ['top_recommendations', 'score_projections', 'additional_items']
     },
     {
-      id: 4,
+      id: 5,
       type: 'vision',
       title: 'With PatientPay',
       description: 'Your projected future state',
       content: ['current_vs_projected', 'category_breakdown', 'capabilities']
     },
     {
-      id: 5,
+      id: 6,
       type: 'next-steps',
       title: 'Next Steps',
       description: 'Action items and resources',

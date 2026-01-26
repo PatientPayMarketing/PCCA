@@ -1483,7 +1483,8 @@
 
       // V4.7: SNF uses 5 slides, others use 6
       const useTwoCategories = scores.useTwoCategories;
-      const totalSlides = useTwoCategories ? 5 : 6;
+      // V4.12.2: Non-SNF now has 7 slides (added Market Context slide)
+      const totalSlides = useTwoCategories ? 5 : 7;
 
       const goToSlide = (index) => {
         if (index === currentSlide || isTransitioning || index < 0 || index >= totalSlides) return;
@@ -1906,181 +1907,156 @@
               </div>
             )}
 
-            {/* V4.12: "What Today's Families Expect" - Statistics callout for non-SNF */}
-            {/* V4.12.1: Refined based on UX evaluation - less confrontational, better hierarchy */}
-            {segment !== 'SNF' && (
-              <div style={{ marginTop: 40 }}>
-                {/* Transitional text - connects strengths to market context */}
-                <p style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 15,
-                  textAlign: 'center',
-                  marginBottom: 20,
-                  fontStyle: 'italic'
-                }}>
-                  And families today are looking for exactly these kinds of experiences...
-                </p>
-
-                <div style={{
-                  textAlign: 'center',
-                  marginBottom: 20
-                }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 20px',
-                    background: 'linear-gradient(135deg, rgba(60,143,199,0.12), rgba(60,143,199,0.05))',
-                    borderRadius: 100,
-                    border: '1px solid rgba(60,143,199,0.25)'
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: '#3c8fc7' }}>
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <span style={{
-                      fontFamily: "'Archivo'",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: '#3c8fc7',
-                      textTransform: 'uppercase',
-                      letterSpacing: 1.5
-                    }}>
-                      What Families Are Choosing
-                    </span>
-                  </div>
-                </div>
-
-                <h3 style={{
-                  fontFamily: "'Archivo'",
-                  fontSize: 24,
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  marginBottom: 8,
-                  color: '#fff'
-                }}>
-                  Today's Families Expect Modern Options
-                </h3>
-                <p style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 14,
-                  textAlign: 'center',
-                  maxWidth: 480,
-                  margin: '0 auto 24px auto',
-                  lineHeight: 1.5
-                }}>
-                  The families choosing senior living today are digitally fluent—and their expectations reflect it.
-                </p>
-
-                {/* Stats - Reduced to 3 with clear hierarchy: 1 hero + 2 supporting */}
-                {/* V4.12.1: Added stat-card class for hover interactions + statPop for hero number */}
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 16,
-                  marginBottom: 20
-                }}>
-                  {/* Hero Stat - Most actionable: card preference directly ties to revenue */}
-                  <div className="glass-card stat-card" style={{
-                    padding: 28,
-                    textAlign: 'center',
-                    background: 'linear-gradient(135deg, rgba(252,201,59,0.15), rgba(252,201,59,0.05))',
-                    border: '2px solid rgba(252,201,59,0.35)',
-                    animation: 'fadeInUp 0.5s ease-out 0.1s both'
-                  }}>
-                    <div style={{
-                      fontSize: 56,
-                      fontWeight: 800,
-                      fontFamily: "'Archivo'",
-                      color: '#fcc93b',
-                      lineHeight: 1,
-                      marginBottom: 8,
-                      textShadow: '0 0 40px rgba(252,201,59,0.3)',
-                      animation: 'statPop 0.6s ease-out 0.3s both'
-                    }}>67%</div>
-                    <div style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 4 }}>
-                      would choose a card-accepting facility
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      over one that doesn't offer modern payment options
-                    </div>
-                  </div>
-
-                  {/* Two supporting stats in a row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                    <div className="glass-card stat-card" style={{
-                      padding: 18,
-                      textAlign: 'center',
-                      background: 'linear-gradient(135deg, rgba(60,143,199,0.10), rgba(60,143,199,0.03))',
-                      border: '1px solid rgba(60,143,199,0.20)',
-                      animation: 'fadeInUp 0.5s ease-out 0.2s both'
-                    }}>
-                      <div style={{
-                        fontSize: 32,
-                        fontWeight: 800,
-                        fontFamily: "'Archivo'",
-                        color: '#3c8fc7',
-                        lineHeight: 1,
-                        marginBottom: 4,
-                        animation: 'statPop 0.5s ease-out 0.4s both'
-                      }}>78%</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        of seniors 65+ own smartphones
-                      </div>
-                    </div>
-
-                    <div className="glass-card stat-card" style={{
-                      padding: 18,
-                      textAlign: 'center',
-                      background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.03))',
-                      border: '1px solid rgba(16,185,129,0.20)',
-                      animation: 'fadeInUp 0.5s ease-out 0.3s both'
-                    }}>
-                      <div style={{
-                        fontSize: 32,
-                        fontWeight: 800,
-                        fontFamily: "'Archivo'",
-                        color: '#10B981',
-                        lineHeight: 1,
-                        marginBottom: 4,
-                        animation: 'statPop 0.5s ease-out 0.5s both'
-                      }}>70%</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        of adults 50+ use FinTech apps
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom insight - Reframed from isolation to opportunity */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 10,
-                  padding: '14px 20px',
-                  background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.05))',
-                  borderRadius: 12,
-                  border: '1px solid rgba(16,185,129,0.25)'
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: '#10B981', flexShrink: 0 }}>
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M22 4L12 14.01l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    Early adopters are already capturing this demand. <strong style={{ color: '#10B981' }}>Your window is open.</strong>
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* V4.12.2: "What Families Are Choosing" moved to its own slide (MarketContextSlide) */}
 
             <NavButtons />
           </div>
         );
       };
 
-      // Slide 2: Your Opportunities (V4.7 - Refactored from Gaps)
+      // V4.12.2: NEW Slide 2 - Market Context (non-SNF only)
+      // "What Today's Families Expect" - moved from StrengthsSlide to its own dedicated slide
+      const MarketContextSlide = () => {
+        return (
+          <div>
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ fontSize: 14, fontFamily: "'Archivo'", color: '#3c8fc7', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
+                Market Context
+              </div>
+              <h2 style={{ fontFamily: "'Archivo'", fontSize: 32, fontWeight: 700, marginBottom: 10,
+                background: 'linear-gradient(135deg, #3c8fc7, #fcc93b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                What Families Are Choosing
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.6, maxWidth: 560 }}>
+                The families choosing senior living today are digitally fluent—and their expectations reflect it.
+              </p>
+            </div>
+
+            {/* Hero Stat Card */}
+            <div className="glass-card stat-card" style={{
+              padding: 36,
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, rgba(252,201,59,0.15), rgba(252,201,59,0.05))',
+              border: '2px solid rgba(252,201,59,0.35)',
+              marginBottom: 20,
+              animation: 'fadeInUp 0.5s ease-out 0.1s both'
+            }}>
+              <div style={{
+                fontSize: 72,
+                fontWeight: 800,
+                fontFamily: "'Archivo'",
+                color: '#fcc93b',
+                lineHeight: 1,
+                marginBottom: 12,
+                textShadow: '0 0 60px rgba(252,201,59,0.4)',
+                animation: 'statPop 0.6s ease-out 0.3s both'
+              }}>67%</div>
+              <div style={{ fontSize: 18, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 6 }}>
+                would choose a card-accepting facility
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                over one that doesn't offer modern payment options
+              </div>
+            </div>
+
+            {/* Supporting Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 }}>
+              <div className="glass-card stat-card" style={{
+                padding: 24,
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, rgba(60,143,199,0.12), rgba(60,143,199,0.04))',
+                border: '1px solid rgba(60,143,199,0.25)',
+                animation: 'fadeInUp 0.5s ease-out 0.2s both'
+              }}>
+                <div style={{
+                  fontSize: 44,
+                  fontWeight: 800,
+                  fontFamily: "'Archivo'",
+                  color: '#3c8fc7',
+                  lineHeight: 1,
+                  marginBottom: 8,
+                  animation: 'statPop 0.5s ease-out 0.4s both'
+                }}>78%</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  of seniors 65+ own smartphones
+                </div>
+              </div>
+
+              <div className="glass-card stat-card" style={{
+                padding: 24,
+                textAlign: 'center',
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))',
+                border: '1px solid rgba(16,185,129,0.25)',
+                animation: 'fadeInUp 0.5s ease-out 0.3s both'
+              }}>
+                <div style={{
+                  fontSize: 44,
+                  fontWeight: 800,
+                  fontFamily: "'Archivo'",
+                  color: '#10B981',
+                  lineHeight: 1,
+                  marginBottom: 8,
+                  animation: 'statPop 0.5s ease-out 0.5s both'
+                }}>70%</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  of adults 50+ use FinTech apps
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Context Stats */}
+            <div className="glass-card" style={{
+              padding: 20,
+              marginBottom: 24,
+              animation: 'fadeInUp 0.5s ease-out 0.4s both'
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Archivo'", color: '#8B5CF6', marginBottom: 4 }}>82%</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>prefer digital payments</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Archivo'", color: '#3c8fc7', marginBottom: 4 }}>75%</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>want card payment options</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Archivo'", color: '#10B981', marginBottom: 4 }}>69%</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.3 }}>willing to pay convenience fees</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom insight - opportunity framing */}
+            <div className="glass-card" style={{
+              padding: 24,
+              background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.06))',
+              border: '1px solid rgba(16,185,129,0.30)',
+              textAlign: 'center',
+              animation: 'fadeInUp 0.5s ease-out 0.5s both'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ color: '#10B981' }}>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M22 4L12 14.01l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{ fontFamily: "'Archivo'", fontSize: 16, fontWeight: 700, color: '#10B981' }}>
+                  The Opportunity
+                </span>
+              </div>
+              <p style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.6, maxWidth: 500, margin: '0 auto' }}>
+                Early adopters are already capturing this demand. <strong style={{ color: '#10B981' }}>Your window is open.</strong>
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>
+                Only 16% of senior living facilities have modernized their payment systems.
+              </p>
+            </div>
+
+            <NavButtons />
+          </div>
+        );
+      };
+
+      // Slide 3 (was 2): Your Opportunities (V4.7 - Refactored from Gaps)
       const OpportunitiesSlide = () => {
         // Get categories below benchmark, ordered by category index (Ops → Family → Competitive)
         const opportunityCategories = gapAnalysis ? gapAnalysis.categories
@@ -3605,11 +3581,11 @@
       };
 
       const renderSlide = () => {
-        // V4.7: New emotional arc flow
+        // V4.12.2: Updated emotional arc flow
         // SNF (5 slides): Overview → Strengths → Opportunities → Improvements+Vision → Next Steps
-        // Others (6 slides): Overview → Strengths → Opportunities → Improvements → Vision → Next Steps
+        // Others (7 slides): Overview → Strengths → Market Context → Opportunities → Improvements → Vision → Next Steps
         if (useTwoCategories) {
-          // SNF: 5 slides with combined Improvements+Vision
+          // SNF: 5 slides with combined Improvements+Vision (no Market Context)
           switch(currentSlide) {
             case 0: return <OverviewSlide />;
             case 1: return <StrengthsSlide />;
@@ -3619,14 +3595,15 @@
             default: return <OverviewSlide />;
           }
         } else {
-          // Standard: 6 slides with separate Improvements and Vision
+          // Standard: 7 slides with Market Context after Strengths
           switch(currentSlide) {
             case 0: return <OverviewSlide />;
             case 1: return <StrengthsSlide />;
-            case 2: return <OpportunitiesSlide />;
-            case 3: return <ImprovementsSlide />;
-            case 4: return <VisionSlide />;
-            case 5: return <NextStepsSlide />;
+            case 2: return <MarketContextSlide />;  // V4.12.2: NEW - dedicated slide
+            case 3: return <OpportunitiesSlide />;
+            case 4: return <ImprovementsSlide />;
+            case 5: return <VisionSlide />;
+            case 6: return <NextStepsSlide />;
             default: return <OverviewSlide />;
           }
         }
