@@ -3939,7 +3939,7 @@ async function generatePDFReport(formData, answers, scores) {
     doc.setFontSize(fontSize.xs);
     doc.setFont('helvetica', 'normal');
     doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 28, { align: 'center' });
-    doc.text('PatientPay Assessment v4.10', margin, pageHeight - 28);
+    doc.text('PatientPay Assessment v4.12', margin, pageHeight - 28);
     doc.text(new Date().toLocaleDateString(), pageWidth - margin, pageHeight - 28, { align: 'right' });
   };
 
@@ -4315,7 +4315,7 @@ async function generatePDFReport(formData, answers, scores) {
     setColor(colors.success);
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${insights.snfCurrentARDays} → ${insights.snfProjectedARDays}`, margin + spacing.lg + impactColWidth, impactY);
+    doc.text(`${insights.snfCurrentARDays} to ${insights.snfProjectedARDays}`, margin + spacing.lg + impactColWidth, impactY);
     setColor(colors.textDark);
     doc.setFontSize(fontSize.sm);
     doc.text('AR days (47% faster)', margin + spacing.lg + impactColWidth, impactY + 16);
@@ -4409,7 +4409,10 @@ async function generatePDFReport(formData, answers, scores) {
     y += 125;
 
     // Multi-guarantor insight (if applicable) - V4.9: Cleaner design
-    if (insights.avgPayersPerResident > 1) {
+    // V4.12.2: Only show if there's enough space on the page (need ~110px + footer space)
+    const multiGuarantorHeight = 110;
+    const footerSpace = 60;
+    if (insights.avgPayersPerResident > 1 && (y + multiGuarantorHeight + footerSpace < pageHeight)) {
       setFillColor([240, 249, 255]); // Light blue background
       doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
 
@@ -4927,10 +4930,12 @@ async function generatePDFReport(formData, answers, scores) {
   doc.setFont('helvetica', 'bold');
   doc.text('Top 5 High-Impact Improvements', margin, y);
 
+  // V4.12.2: Move subtitle to next line to prevent text overlap
+  y += 14;
   setColor(colors.textMuted);
   doc.setFontSize(fontSize.sm);
   doc.setFont('helvetica', 'normal');
-  doc.text('Implementing all five could increase your score by up to ' + projectionsData.overallImprovement + ' points.', margin + 185, y);
+  doc.text('Implementing all five could increase your score by up to ' + projectionsData.overallImprovement + ' points.', margin, y);
 
   y += spacing.lg;
 
@@ -4961,18 +4966,29 @@ async function generatePDFReport(formData, answers, scores) {
       doc.setFont('helvetica', 'bold');
       doc.text(`+${imp.overallImpact} pts`, margin + 71, y + 25, { align: 'center' });
 
-      // Description - V4.9: Better font sizing
+      // Description - V4.12.2: Show full description with proper truncation
       setColor(colors.textDark);
       doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'bold');
-      const descText = doc.splitTextToSize(imp.description, 270);
-      doc.text(descText[0], margin + 112, y + 22);
+      // V4.12.2: Increased width and show two lines if needed
+      const maxDescWidth = 285;
+      const descText = doc.splitTextToSize(imp.description, maxDescWidth);
+      // Show first line, and if there's more, add ellipsis or show second line
+      if (descText.length > 1) {
+        doc.text(descText[0], margin + 112, y + 18);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        doc.text(descText[1], margin + 112, y + 30);
+      } else {
+        doc.text(descText[0], margin + 112, y + 22);
+      }
 
       // Running total - V4.10: Use text arrow for font compatibility
       setColor(colors.textMuted);
       doc.setFontSize(fontSize.sm);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Score: ${prevScore} -> ${cumulativeScore}`, margin + 112, y + 38);
+      const scoreY = descText.length > 1 ? y + 42 : y + 38;
+      doc.text(`Score: ${prevScore} -> ${cumulativeScore}`, margin + 112, scoreY);
 
       // Score progression box - V4.10: Show just the target score
       setFillColor(colors.secondary);
@@ -5024,7 +5040,11 @@ async function generatePDFReport(formData, answers, scores) {
   }
 
   // V4.12: Triple Win Framework for non-SNF segments
-  if (segment !== 'SNF') {
+  // V4.12.2: Only show if there's enough space on page (need ~225px for both sections)
+  const tripleWinTotalHeight = 225;
+  const availableForTripleWin = pageHeight - 60 - y; // 60 for footer
+
+  if (segment !== 'SNF' && availableForTripleWin >= tripleWinTotalHeight) {
     y += spacing.md;
 
     // "What Today's Families Expect" Stats Box
@@ -5511,13 +5531,20 @@ async function generatePDFReport(formData, answers, scores) {
   doc.setFont('helvetica', 'normal');
   doc.text('Schedule a personalized demo to see how PatientPay integrates with PointClickCare.', margin + spacing.lg, y + 78);
 
-  // URL with accent highlight - V4.10: PointClickCare Marketplace URL
+  // V4.12.2: Updated CTAs with correct URLs
+  // Contact URL button
   setFillColor(colors.accent);
-  doc.roundedRect(margin + spacing.lg - 5, y + 85, 290, 18, radius.sm, radius.sm, 'F');
+  doc.roundedRect(margin + spacing.lg - 5, y + 85, 175, 18, radius.sm, radius.sm, 'F');
   setColor(colors.primary);
   doc.setFontSize(fontSize.md);
   doc.setFont('helvetica', 'bold');
-  doc.text('marketplace.pointclickcare.com/patientpay', margin + spacing.lg, y + 97);
+  doc.text('www.patientpay.com/contact', margin + spacing.lg, y + 97);
+
+  // PCC Marketplace text
+  setColor(colors.white);
+  doc.setFontSize(fontSize.sm);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Find us on the PCC Marketplace', margin + spacing.lg + 190, y + 97);
 
   addFooter(7);
 
