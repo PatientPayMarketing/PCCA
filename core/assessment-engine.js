@@ -1,12 +1,22 @@
 /**
  * PatientPay Senior Living Payment Readiness Assessment
- * CORE ENGINE - Version 4.11
+ * CORE ENGINE - Version 4.12.2
  *
  * This file contains all business logic, calculations, and data.
  * It is UI-agnostic and can be used with any presentation layer.
  *
  * DO NOT MODIFY unless changing business logic, scoring, or questions.
  * UI changes should be made in the UI layer files only.
+ *
+ * V4.12.2 Changes (SNF Payment Plans):
+ * - NEW: snf_payment_plans question - asks about self-service payment plan capability
+ *   - 3 options: no plans, manual process, fully automated self-service
+ *   - Cross-category scoring: 65% Collection Efficiency, 35% Family Experience
+ * - NEW: Payment plan recommendations (enable_snf_payment_plans, automate_snf_payment_plans)
+ * - NEW: Payment plan financial insights:
+ *   - Estimates difficult balances (15% of annual billing)
+ *   - Calculates recovery improvement (12% → 50% with automated plans)
+ *   - Added paymentPlanOpportunity to totalFinancialOpportunity
  *
  * V4.11 Changes (SNF Financial Impact Focus):
  * - REPLACED: snf_payer_mix (3-field) with snf_monthly_patient_billing (currency input)
@@ -1055,8 +1065,41 @@ const Questions = [
     patientPayProjection: (currentRate) => Math.min(70, currentRate + 25)
   },
 
-  // V4.10: REMOVED snf_payment_plans - Option A simplification
-  // Keeping assessment focused on core: collection rate, payment methods, autopay, multi-guarantor, satisfaction
+  // V4.12.2: SNF Payment Plans - Re-added based on CEO feedback
+  // Payment plans convert potential bad debt into structured payments
+  // Cross-category: Collection Efficiency (primary) + Family Experience (secondary)
+  {
+    id: 'snf_payment_plans',
+    category: "Collection Efficiency", // Primary category (display label)
+    categoryIndex: 0,
+    // V4.12.2: Cross-category scoring - 65% Collection, 35% Family Experience
+    // Primary benefit: recovering revenue that would become bad debt
+    // Secondary benefit: reducing financial stress for families
+    categoryWeights: [
+      { index: 0, weight: 0.65 }, // Collection Efficiency (primary - bad debt prevention)
+      { index: 1, weight: 0.35 }  // Family Experience (financial flexibility for families)
+    ],
+    question: "Do you offer payment plans for patients and families who can't pay their balance in full?",
+    subtext: "Self-service payment plans convert potential bad debt into structured payments. Facilities report 40-60% of payment plan balances are recovered vs. 10-15% without.",
+    type: "single",
+    segments: ['SNF'],
+    options: [
+      { label: "No, we don't currently offer payment plans", value: "no", score: 15 },
+      { label: "Yes, but it's a manual process (staff sets up and tracks)", value: "manual", score: 55 },
+      { label: "Yes, fully automated self-service (patients enroll themselves)", value: "automated", score: 100 }
+    ],
+    insight: {
+      trigger: ["No, we don't currently offer payment plans", "Yes, but it's a manual process (staff sets up and tracks)"],
+      message: "When patients can't pay in full, payment plans are 4-5x more likely to result in collection than sending to bad debt. Self-service enrollment removes staff burden while improving recovery.",
+      proofPoint: "PatientPay customers see 40-60% recovery on payment plans vs. 10-15% industry average on uncollected balances"
+    },
+    patientPayProjection: (currentAnswer) => {
+      // If no plans or manual, project improvement to automated
+      if (currentAnswer === 'no') return 85; // Major improvement
+      if (currentAnswer === 'manual') return 100; // Full automation
+      return 100; // Already automated
+    }
+  },
 
   // SNF Family Satisfaction (V4.10 - Family Experience)
   // This is the core family experience question
@@ -1940,7 +1983,53 @@ const RecommendationDefinitions = [
     basePriority: 75,
     segmentSpecific: ['SNF']
   },
-  // V4.10: REMOVED add_snf_payment_plans (references removed snf_payment_plans question)
+  // V4.12.2: SNF Payment Plans recommendations - re-added
+  {
+    id: 'enable_snf_payment_plans',
+    category: 'operations',
+    title: 'Enable Self-Service Payment Plans',
+    trigger: (answers) => {
+      const plans = answers['snf_payment_plans'];
+      return answers['facility_type'] === 'SNF' && plans === 'no';
+    },
+    currentState: () => "You don't offer payment plans for patients who can't pay in full",
+    targetState: "Self-service payment plans that convert potential bad debt into structured payments",
+    impact: {
+      description: "Payment plans dramatically improve collection on difficult balances",
+      metrics: [
+        "40-60% recovery rate on payment plans vs. 10-15% without",
+        "Families prefer structured payments over ignoring bills",
+        "Reduces bad debt write-offs significantly"
+      ]
+    },
+    patientPayConnection: "PatientPay's self-service payment plans let facilities configure plan options while families self-enroll. Payments auto-process - no staff intervention needed.",
+    scoreImpact: { category: 'operations', points: 20, overall: 12 },
+    basePriority: 85,
+    segmentSpecific: ['SNF']
+  },
+  {
+    id: 'automate_snf_payment_plans',
+    category: 'operations',
+    title: 'Automate Payment Plan Management',
+    trigger: (answers) => {
+      const plans = answers['snf_payment_plans'];
+      return answers['facility_type'] === 'SNF' && plans === 'manual';
+    },
+    currentState: () => "Payment plans require manual staff setup and tracking",
+    targetState: "Fully automated self-service payment plans with automatic payment processing",
+    impact: {
+      description: "Automation removes staff burden while improving enrollment",
+      metrics: [
+        "Self-service enrollment increases plan adoption 2-3x",
+        "Automatic payments eliminate missed installments",
+        "Staff freed from tracking and follow-up"
+      ]
+    },
+    patientPayConnection: "PatientPay automates the entire payment plan lifecycle - enrollment, scheduling, processing, and communications - with no staff involvement required.",
+    scoreImpact: { category: 'operations', points: 15, overall: 8 },
+    basePriority: 75,
+    segmentSpecific: ['SNF']
+  },
   {
     id: 'improve_snf_family_satisfaction',
     category: 'family',
@@ -3390,6 +3479,23 @@ function calculateInsights(formData, answers) {
     const snfAutopayEnrollment = answers['snf_autopay_enrollment'] || 15;
     const snfHasAutopay = snfAutopay === 'yes';
 
+    // V4.12.2: Payment plan insights calculation
+    const snfPaymentPlans = answers['snf_payment_plans'];
+    const hasPaymentPlans = snfPaymentPlans === 'manual' || snfPaymentPlans === 'automated';
+    const hasAutomatedPaymentPlans = snfPaymentPlans === 'automated';
+
+    // Payment plan financial impact:
+    // Without payment plans: ~10-15% recovery on difficult balances
+    // With payment plans: ~40-60% recovery (4-5x improvement)
+    // Estimate: 15% of annual billing becomes "difficult" balances
+    const difficultBalancesPct = 0.15;
+    const difficultBalances = Math.round(snfAnnualBilling * difficultBalancesPct);
+    const currentRecoveryRate = hasPaymentPlans ? 0.40 : 0.12; // 40% with plans, 12% without
+    const targetRecoveryRate = 0.50; // 50% with automated self-service
+    const currentRecovery = Math.round(difficultBalances * currentRecoveryRate);
+    const potentialRecovery = Math.round(difficultBalances * targetRecoveryRate);
+    const paymentPlanOpportunity = Math.max(0, potentialRecovery - currentRecovery);
+
     return {
       ...baseInsights,
       // V4.11: Direct financial inputs from user
@@ -3416,8 +3522,14 @@ function calculateInsights(formData, answers) {
       // Autopay data
       snfHasAutopay,
       snfAutopayEnrollment,
-      // V4.11: Total financial opportunity (AR reduction + bad debt savings + collection gap)
-      totalFinancialOpportunity: snfCashFreedByARReduction + snfBadDebtSavings + collectionGap,
+      // V4.12.2: Payment plan data
+      hasPaymentPlans,
+      hasAutomatedPaymentPlans,
+      snfPaymentPlans,
+      difficultBalances,
+      paymentPlanOpportunity,
+      // V4.11: Total financial opportunity (AR reduction + bad debt savings + collection gap + payment plans)
+      totalFinancialOpportunity: snfCashFreedByARReduction + snfBadDebtSavings + collectionGap + paymentPlanOpportunity,
       // Collection improvement opportunity
       privatePayCollectionOpportunity: collectionGap
     };
