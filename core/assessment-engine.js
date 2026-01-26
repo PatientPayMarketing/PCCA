@@ -3015,10 +3015,7 @@ function calculateQuestionScore(question, answer) {
     return Math.min(sum, question.maxScore || 100);
   }
 
-  // V4.9: Payer mix type is diagnostic, doesn't score
-  if (question.type === 'payer_mix') {
-    return null;
-  }
+  // V4.12.2: Removed orphaned payer_mix scoring - question type removed in V4.11
 
   return 0;
 }
@@ -5475,10 +5472,8 @@ async function generatePDFReport(formData, answers, scores) {
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
     let answerText;
-    if (q.type === 'payer_mix' && typeof answer === 'object') {
-      // V4.10: Format payer mix object as readable string
-      answerText = `Medicare: ${answer.medicare || 0}%, Medicaid: ${answer.medicaid || 0}%, Private Pay: ${answer.privatePay || 0}%`;
-    } else if (Array.isArray(answer)) {
+    // V4.12.2: Removed orphaned payer_mix PDF formatting - question type removed in V4.11
+    if (Array.isArray(answer)) {
       answerText = answer.join(', ');
     } else if (q.type === 'slider' && q.unit) {
       answerText = answer + q.unit;
