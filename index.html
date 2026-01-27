@@ -50,10 +50,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Senior Living Payment Readiness Assessment</title>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- V4.10: Production React builds for better performance -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- V4.13: Pinned versions with SRI integrity hashes for supply-chain security -->
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin="anonymous" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.6/babel.min.js" crossorigin="anonymous" integrity="sha384-dj/7w9lBYA3I0KqC9jHAkmmCoyatRTqnCXX8ZTP4BpAJu2hvvx+w9aEJuFMTuja1"></script>
   <script src="./core/assessment-engine.js"></script>
   <style>
     :root {
@@ -827,12 +827,18 @@
       const handleSubmit = () => {
         const newErrors = {};
         if (!formData.name.trim()) newErrors.name = 'Required';
+        if (formData.name.trim().length > 100) newErrors.name = 'Name is too long';
         if (!formData.email.trim()) newErrors.email = 'Required';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) newErrors.email = 'Please enter a valid email';
         if (!formData.organization.trim()) newErrors.organization = 'Required';
+        if (formData.organization.trim().length > 200) newErrors.organization = 'Organization name is too long';
         if (!formData.facilityType) newErrors.facilityType = 'Please select your facility type';
         if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
         onSubmit({
           ...formData,
+          name: formData.name.trim().substring(0, 100),
+          email: formData.email.trim().substring(0, 254),
+          organization: formData.organization.trim().substring(0, 200),
           bedCount: formData.bedCount ? parseInt(formData.bedCount) : null,
           avgMonthlyRate: parseCurrencyToNumber(formData.avgMonthlyRate)
         });
@@ -3495,7 +3501,12 @@
     ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
 
     // V4.10: Iframe height communication for Webflow embedding
-    // Notify parent frame of content height changes
+    // V4.13: Restrict postMessage to known parent origins
+    const ALLOWED_PARENT_ORIGINS = [
+      'https://www.patientpay.com',
+      'https://patientpay.com',
+      'https://patientpay.webflow.io'
+    ];
     function notifyParentHeight() {
       if (window.parent !== window) {
         const height = Math.max(
@@ -3503,7 +3514,10 @@
           document.body.offsetHeight,
           document.documentElement.scrollHeight
         );
-        window.parent.postMessage({ type: 'patientpay-assessment-resize', height: height + 20 }, '*');
+        const msg = { type: 'patientpay-assessment-resize', height: height + 20 };
+        ALLOWED_PARENT_ORIGINS.forEach(origin => {
+          try { window.parent.postMessage(msg, origin); } catch (e) { /* origin mismatch, expected */ }
+        });
       }
     }
 

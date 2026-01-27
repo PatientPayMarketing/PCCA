@@ -3734,8 +3734,16 @@ function generateCSV(data) {
     rows.push([q, a]);
   });
 
+  // V4.13: Sanitize CSV cells to prevent formula injection in spreadsheet apps
+  const sanitizeCSVCell = (val) => {
+    const str = String(val).replace(/"/g, '""');
+    // Prefix formula-triggering characters to prevent execution in Excel/Sheets
+    if (/^[=+\-@\t\r]/.test(str)) return "'" + str;
+    return str;
+  };
+
   return rows.map(row =>
-    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    row.map(cell => `"${sanitizeCSVCell(cell)}"`).join(',')
   ).join('\n');
 }
 
@@ -3862,11 +3870,13 @@ const PATIENTPAY_LOGO_SVG = `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL
  * @returns {Promise<Blob>} - PDF blob for download
  */
 async function generatePDFReport(formData, answers, scores) {
-  // Dynamically load jsPDF if not already loaded
+  // V4.13: Dynamically load jsPDF with integrity check
   if (typeof window.jspdf === 'undefined') {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      script.integrity = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';
+      script.crossOrigin = 'anonymous';
       script.onload = resolve;
       script.onerror = reject;
       document.head.appendChild(script);
@@ -5746,7 +5756,7 @@ if (typeof window !== 'undefined') {
     resultsFlow: ResultsFlow,
     resultsFlowV47: ResultsFlowV47, // V4.7: New emotional arc flow
     sources: SourceCitations,
-    webhookConfig: WebhookConfig,
+    // V4.13: webhookConfig removed from public export (security - prevents abuse)
     // Core calculations
     getVisibleQuestions,
     calculateQuestionScore,
