@@ -810,6 +810,7 @@
       });
       const [errors, setErrors] = useState({});
       const [focusedField, setFocusedField] = useState(null);
+      const [hpField, setHpField] = useState(''); // V4.13: Honeypot for bot detection
 
       // Facility type options (from core engine) - V4.1: IL+AL combined into Senior Living
       const facilityOptions = [
@@ -825,6 +826,8 @@
       const isSeniorLiving = ['SL', 'MC', 'CCRC'].includes(formData.facilityType);
 
       const handleSubmit = () => {
+        // V4.13: Bot detection - honeypot field should always be empty
+        if (hpField) { console.log('Assessment submitted.'); return; }
         const newErrors = {};
         if (!formData.name.trim()) newErrors.name = 'Required';
         if (formData.name.trim().length > 100) newErrors.name = 'Name is too long';
@@ -883,6 +886,13 @@
                   {errors[f.field] && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 6 }}>{errors[f.field]}</div>}
                 </div>
               ))}
+
+              {/* V4.13: Honeypot field - invisible to humans, bots auto-fill it */}
+              <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+                <label htmlFor="website_url">Website</label>
+                <input id="website_url" type="text" name="website_url" tabIndex={-1} autoComplete="off"
+                  value={hpField} onChange={(e) => setHpField(e.target.value)} />
+              </div>
 
               {/* Facility Type Selection - REQUIRED */}
               <div style={{ marginTop: 12 }}>
