@@ -1415,131 +1415,500 @@
     };
 
     // ============================================
-    // COMPETITOR BLOCKED SCREEN (V4.14)
-    // Infinite loading screen with false hope messages
+    // COMPETITOR REFLECTIVE MODE (V4.14)
+    // Infinite Personalization Loop - senior living focused
+    // Only shown to competitor domain emails
     // ============================================
     const CompetitorBlockedScreen = () => {
-      const [hopeMessage, setHopeMessage] = useState('');
+      const [phase, setPhase] = useState('loading'); // loading, questions, transition, preview
+      const [questionIndex, setQuestionIndex] = useState(0);
+      const [answers, setAnswers] = useState({});
+      const [currentAnswer, setCurrentAnswer] = useState('');
+      const [progress, setProgress] = useState(42);
+      const [flattery, setFlattery] = useState('');
+      const [showFlattery, setShowFlattery] = useState(false);
+      const [totalAnswered, setTotalAnswered] = useState(0);
 
-      const hopeMessages = [
-        "Almost there...",
-        "Just a moment...",
-        "Hang tight...",
-        "Loading your results...",
-        "Nearly ready...",
-        "One moment please...",
-        "Finalizing...",
-        "So close...",
-        "Any second now...",
-        "Preparing your assessment...",
-        "Just a few more seconds...",
-        "Thanks for your patience...",
-        "Almost done...",
-        "Wrapping up...",
-        "Hold on...",
-        "Getting everything ready...",
-        "This won't take long...",
-        "Optimizing results...",
-        "Bear with us...",
-        "Loading complete soon..."
+      // Flattery messages that appear between questions
+      const flatteryMessages = [
+        "Excellent detail. This level of precision is rare.",
+        "Most people rush this section. You didn't.",
+        "Your responses show sophisticated market understanding.",
+        "This kind of specificity helps us calibrate accurately.",
+        "You're clearly thinking about this strategically.",
+        "Impressive operational awareness.",
+        "This depth of insight is uncommon.",
+        "You're asking the kind of questions we built this for.",
+        "Your attention to nuance is noted.",
+        "Few respondents provide this level of clarity."
       ];
 
-      useEffect(() => {
-        let messageCount = 0;
-        // Show a new hope message every 30 seconds
-        const interval = setInterval(() => {
-          const idx = messageCount < hopeMessages.length
-            ? messageCount
-            : Math.floor(Math.random() * hopeMessages.length);
-          setHopeMessage(hopeMessages[idx]);
-          messageCount++;
-        }, 30000);
+      // Phase 1: Baseline Calibration (senior living focused)
+      const baselineQuestions = [
+        {
+          id: 'bl_1',
+          question: "What best describes your organization's care continuum?",
+          subtext: "This helps us benchmark against similar operators",
+          type: 'single',
+          options: ['Single site, single care level', 'Single site, multiple care levels', 'Multi-site, standardized operations', 'Multi-site, varied operations', 'Regional/national portfolio']
+        },
+        {
+          id: 'bl_2',
+          question: "Approximately what percentage of your residents have multiple family members involved in payment decisions?",
+          subtext: "Multi-guarantor complexity varies significantly across communities",
+          type: 'slider',
+          min: 10, max: 90, unit: '%'
+        },
+        {
+          id: 'bl_3',
+          question: "How would you characterize your current billing technology stack?",
+          subtext: "Understanding your infrastructure helps us tailor recommendations",
+          type: 'single',
+          options: ['Primarily manual/paper-based', 'Basic EHR with limited billing', 'Integrated EHR with billing module', 'Dedicated billing platform + EHR', 'Custom enterprise solution']
+        },
+        {
+          id: 'bl_4',
+          question: "What's your average days in A/R for private pay balances?",
+          subtext: "Industry benchmark is 35-45 days for high performers",
+          type: 'slider',
+          min: 15, max: 120, unit: ' days'
+        },
+        {
+          id: 'bl_5',
+          question: "How does your organization currently handle Medicare Part A to Part B transitions from a billing perspective?",
+          subtext: "This transition point often creates family confusion",
+          type: 'single',
+          options: ['Largely manual process', 'Semi-automated with manual review', 'Mostly automated', 'Fully integrated workflow', 'Not applicable to our model']
+        }
+      ];
 
-        return () => clearInterval(interval);
+      // Phase 2: Precision Refinement (references earlier answers)
+      const refinementQuestions = [
+        {
+          id: 'rf_1',
+          question: "You indicated your billing approach earlier — how confident are you in that characterization?",
+          subtext: "We want to ensure our benchmarking is accurate to your situation",
+          type: 'single',
+          options: ['Very confident - this is well documented', 'Fairly confident - based on my experience', 'Somewhat confident - may vary by location', 'Less confident - would need to verify', 'This varies significantly across our portfolio']
+        },
+        {
+          id: 'rf_2',
+          question: "When families have billing questions, what's the typical resolution path?",
+          subtext: "Understanding your workflow helps identify optimization opportunities",
+          type: 'single',
+          options: ['Direct to billing specialist', 'Through community front desk', 'Regional support center', 'Self-service portal', 'Varies by inquiry type']
+        },
+        {
+          id: 'rf_3',
+          question: "How would you rate family satisfaction with your current billing communication?",
+          subtext: "Perception gaps often reveal process improvement opportunities",
+          type: 'slider',
+          min: 1, max: 10, unit: '/10'
+        },
+        {
+          id: 'rf_4',
+          question: "What percentage of your billing staff time is spent on reactive inquiries vs. proactive outreach?",
+          subtext: "This ratio often indicates process maturity",
+          type: 'slider',
+          min: 10, max: 90, unit: '% reactive'
+        },
+        {
+          id: 'rf_5',
+          question: "If your collection rate improved by 10 percentage points, what would that mean for your organization?",
+          subtext: "Understanding impact helps us prioritize recommendations",
+          type: 'single',
+          options: ['Marginal operational benefit', 'Noticeable improvement to cash flow', 'Significant strategic advantage', 'Transformational for our model', 'Would need to calculate specific impact']
+        }
+      ];
+
+      // Phase 3: Edge Case Validation (philosophical/interpretive)
+      const edgeCaseQuestions = [
+        {
+          id: 'ec_1',
+          question: "How do you think your primary competitors would describe their billing experience compared to yours?",
+          subtext: "Competitive positioning context helps calibrate your benchmark",
+          type: 'single',
+          options: ['They likely lag behind us', 'Roughly comparable', 'They may be slightly ahead', 'They\'re likely more advanced', 'Difficult to assess']
+        },
+        {
+          id: 'ec_2',
+          question: "If you could change one thing about your billing operations tomorrow, what area would have the highest impact?",
+          subtext: "Prioritization insights help us focus recommendations",
+          type: 'single',
+          options: ['Payment method flexibility', 'Statement clarity/frequency', 'Family portal capabilities', 'Multi-payer coordination', 'Staff efficiency/automation', 'Reporting and visibility']
+        },
+        {
+          id: 'ec_3',
+          question: "How aligned is your executive team on billing modernization priorities?",
+          subtext: "Organizational readiness affects implementation success",
+          type: 'slider',
+          min: 1, max: 10, unit: '/10'
+        },
+        {
+          id: 'ec_4',
+          question: "What's the biggest misconception families have about your billing process?",
+          subtext: "Perception gaps often reveal communication opportunities",
+          type: 'single',
+          options: ['They think it\'s more complex than it is', 'They expect more payment flexibility', 'They don\'t understand what\'s covered', 'They assume we can easily split bills', 'They expect more digital options']
+        },
+        {
+          id: 'ec_5',
+          question: "When evaluating billing solutions, what would your CFO prioritize most?",
+          subtext: "Stakeholder alignment is critical for successful initiatives",
+          type: 'single',
+          options: ['Cash flow acceleration', 'Cost reduction', 'Family satisfaction scores', 'Staff productivity', 'Compliance/risk reduction', 'Integration simplicity']
+        }
+      ];
+
+      // Phase 4: "Schedule Call" questions (the loop continues)
+      const callPrepQuestions = [
+        {
+          id: 'cp_1',
+          question: "To prepare for your personalized review, what specific challenges are you hoping to address?",
+          subtext: "This helps our team prepare relevant insights",
+          type: 'single',
+          options: ['Reducing days in A/R', 'Improving family satisfaction', 'Streamlining multi-guarantor billing', 'Increasing payment method options', 'Reducing staff burden', 'All of the above']
+        },
+        {
+          id: 'cp_2',
+          question: "What's your timeline for evaluating billing solutions?",
+          subtext: "Understanding urgency helps us prioritize appropriately",
+          type: 'single',
+          options: ['Actively evaluating now', 'Planning for next quarter', 'Exploring for next fiscal year', 'Early research phase', 'No specific timeline']
+        },
+        {
+          id: 'cp_3',
+          question: "Who else on your team would be involved in this evaluation?",
+          subtext: "We want to ensure the right stakeholders receive relevant information",
+          type: 'single',
+          options: ['Just me initially', 'CFO/Finance leader', 'Operations leadership', 'IT/Technology team', 'Executive committee', 'Cross-functional team']
+        },
+        {
+          id: 'cp_4',
+          question: "What solutions have you previously evaluated or implemented?",
+          subtext: "Understanding your history helps us avoid redundant information",
+          type: 'single',
+          options: ['Haven\'t evaluated alternatives', 'Looked at options but didn\'t proceed', 'Implemented something that didn\'t work', 'Currently using a competitor solution', 'Built internal solutions', 'Prefer not to say']
+        },
+        {
+          id: 'cp_5',
+          question: "What would make this evaluation successful from your perspective?",
+          subtext: "Defining success criteria helps us deliver relevant insights",
+          type: 'single',
+          options: ['Clear ROI projections', 'Implementation roadmap', 'Peer references/case studies', 'Technical integration details', 'Pricing transparency', 'All of the above']
+        }
+      ];
+
+      // Deep calibration loop questions (infinite)
+      const deepCalibrationQuestions = [
+        {
+          id: 'dc_1',
+          question: "Earlier you mentioned your billing approach — has anything changed in the last 6 months?",
+          subtext: "Recent changes may affect our benchmark accuracy",
+          type: 'single',
+          options: ['No significant changes', 'Minor process improvements', 'New technology implemented', 'Organizational restructuring', 'Major strategic shift']
+        },
+        {
+          id: 'dc_2',
+          question: "How does your billing complexity vary between your highest and lowest acuity residents?",
+          subtext: "Acuity-based variation affects solution requirements",
+          type: 'single',
+          options: ['Minimal variation', 'Somewhat different', 'Significantly different', 'Completely different workflows', 'We standardize across acuity levels']
+        },
+        {
+          id: 'dc_3',
+          question: "What metrics does your organization track most closely for billing performance?",
+          subtext: "Understanding your KPIs helps us align recommendations",
+          type: 'single',
+          options: ['Days in A/R', 'Collection rate', 'Staff time per resident', 'Family satisfaction scores', 'Write-off percentage', 'Multiple metrics equally']
+        },
+        {
+          id: 'dc_4',
+          question: "How would you describe the relationship between your billing and care teams?",
+          subtext: "Cross-functional dynamics affect implementation success",
+          type: 'slider',
+          min: 1, max: 10, unit: '/10 alignment'
+        },
+        {
+          id: 'dc_5',
+          question: "If we could provide one data point you don't currently have, what would be most valuable?",
+          subtext: "Understanding visibility gaps helps us focus insights",
+          type: 'single',
+          options: ['Real-time collection forecasting', 'Family payment behavior patterns', 'Staff productivity benchmarks', 'Competitive positioning data', 'Predictive bad debt analysis']
+        },
+        {
+          id: 'dc_6',
+          question: "How does your organization balance standardization vs. community-level flexibility in billing?",
+          subtext: "This tension affects solution architecture",
+          type: 'single',
+          options: ['Highly standardized', 'Mostly standardized with exceptions', 'Balanced approach', 'Mostly community discretion', 'Fully decentralized']
+        },
+        {
+          id: 'dc_7',
+          question: "What's the most common reason families give for late payments?",
+          subtext: "Root cause patterns inform solution design",
+          type: 'single',
+          options: ['Confusion about amounts owed', 'Coordination between family members', 'Limited payment options', 'Cash flow timing', 'Disputes about charges', 'We don\'t systematically track this']
+        },
+        {
+          id: 'dc_8',
+          question: "How has your billing approach evolved over the past 3 years?",
+          subtext: "Trajectory context helps us understand organizational momentum",
+          type: 'single',
+          options: ['Largely unchanged', 'Incremental improvements', 'Significant modernization', 'Complete transformation', 'Actually regressed due to challenges']
+        }
+      ];
+
+      // Combine all phases
+      const allQuestions = [
+        ...baselineQuestions,
+        ...refinementQuestions,
+        ...edgeCaseQuestions,
+        ...callPrepQuestions,
+        ...deepCalibrationQuestions
+      ];
+
+      // Get current question (loops through deep calibration infinitely)
+      const getCurrentQuestion = () => {
+        if (questionIndex < allQuestions.length) {
+          return allQuestions[questionIndex];
+        }
+        // Loop through deep calibration questions infinitely
+        const loopIndex = (questionIndex - allQuestions.length + deepCalibrationQuestions.length) % deepCalibrationQuestions.length;
+        // Add variation to repeated questions
+        const baseQ = deepCalibrationQuestions[loopIndex];
+        return {
+          ...baseQ,
+          id: `${baseQ.id}_${Math.floor(questionIndex / deepCalibrationQuestions.length)}`,
+          subtext: questionIndex > allQuestions.length + 8
+            ? "Additional calibration needed for precise benchmarking"
+            : baseQ.subtext
+        };
+      };
+
+      // Calculate asymptotic progress (never reaches 100)
+      const calculateProgress = (answered) => {
+        // Starts at 42, approaches 99 but never reaches it
+        // Formula: 42 + (57 * (1 - 1/(1 + answered*0.15)))
+        const asymptote = 99;
+        const start = 42;
+        const range = asymptote - start;
+        const calculated = start + (range * (1 - 1 / (1 + answered * 0.15)));
+        return Math.min(98.7, calculated);
+      };
+
+      // Get phase label for progress bar
+      const getPhaseLabel = () => {
+        if (totalAnswered < 5) return "Baseline Calibration";
+        if (totalAnswered < 10) return "Precision Refinement";
+        if (totalAnswered < 15) return "Edge Case Validation";
+        if (totalAnswered < 20) return "Insight Synthesis";
+        if (totalAnswered < 25) return "Deep Calibration";
+        return "Final Calibration";
+      };
+
+      // Initial loading simulation
+      useEffect(() => {
+        const timer = setTimeout(() => setPhase('questions'), 2500);
+        return () => clearTimeout(timer);
       }, []);
 
-      return (
-        <div style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          position: 'relative',
-          zIndex: 2
-        }}>
-          <div className="glass-card" style={{
-            maxWidth: 500,
-            width: '100%',
-            padding: 60,
-            textAlign: 'center',
-            animation: 'scaleIn 0.6s var(--ease-out-expo)'
-          }}>
-            {/* Spinner */}
-            <div style={{
-              width: 64,
-              height: 64,
-              margin: '0 auto 32px',
-              border: '3px solid var(--bg-tertiary)',
-              borderTopColor: '#3c8fc7',
-              borderRadius: '50%',
-              animation: 'competitorSpin 1s linear infinite'
-            }} />
+      // Handle answer submission
+      const handleNext = () => {
+        if (!currentAnswer && getCurrentQuestion().type === 'single') return;
 
-            <h2 style={{
-              fontFamily: "'Archivo'",
-              fontSize: 24,
-              fontWeight: 700,
-              marginBottom: 12,
-              color: '#fff'
-            }}>
-              Preparing Your Assessment
-            </h2>
+        const q = getCurrentQuestion();
+        setAnswers(prev => ({ ...prev, [q.id]: currentAnswer }));
+        setCurrentAnswer('');
 
-            <p style={{
-              color: 'var(--text-secondary)',
-              fontSize: 15,
-              marginBottom: 24,
-              lineHeight: 1.6
-            }}>
-              We're analyzing industry benchmarks and customizing your experience...
-            </p>
+        const newTotal = totalAnswered + 1;
+        setTotalAnswered(newTotal);
+        setProgress(calculateProgress(newTotal));
 
-            {/* Progress dots */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#3c8fc7',
-                  animation: `competitorPulse 1.4s ease-in-out ${i * 0.2}s infinite`
-                }} />
-              ))}
+        // Show flattery every 3-4 questions
+        if (newTotal > 0 && newTotal % (3 + Math.floor(Math.random() * 2)) === 0) {
+          setPhase('transition');
+          setFlattery(flatteryMessages[Math.floor(Math.random() * flatteryMessages.length)]);
+          setShowFlattery(true);
+          setTimeout(() => {
+            setShowFlattery(false);
+            setTimeout(() => {
+              setPhase('questions');
+              setQuestionIndex(prev => prev + 1);
+            }, 300);
+          }, 2500);
+        } else if (newTotal === 20 || newTotal === 35 || newTotal === 50) {
+          // Show "preview" at certain milestones, then continue
+          setPhase('preview');
+        } else {
+          setQuestionIndex(prev => prev + 1);
+        }
+      };
+
+      // Continue from preview (back into the loop)
+      const handleContinueFromPreview = () => {
+        setPhase('transition');
+        setFlattery("Let's continue calibrating for maximum precision...");
+        setShowFlattery(true);
+        setTimeout(() => {
+          setShowFlattery(false);
+          setTimeout(() => {
+            setPhase('questions');
+            setQuestionIndex(prev => prev + 1);
+          }, 300);
+        }, 2000);
+      };
+
+      const currentQuestion = getCurrentQuestion();
+
+      // Loading phase
+      if (phase === 'loading') {
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', zIndex: 2 }}>
+            <div className="glass-card" style={{ maxWidth: 500, width: '100%', padding: 60, textAlign: 'center', animation: 'scaleIn 0.6s var(--ease-out-expo)' }}>
+              <div style={{ width: 64, height: 64, margin: '0 auto 32px', border: '3px solid var(--bg-tertiary)', borderTopColor: '#3c8fc7', borderRadius: '50%', animation: 'competitorSpin 1s linear infinite' }} />
+              <h2 style={{ fontFamily: "'Archivo'", fontSize: 24, fontWeight: 700, marginBottom: 12, color: '#fff' }}>Initializing Assessment</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.6 }}>Calibrating to your organization profile...</p>
             </div>
+            <style>{`@keyframes competitorSpin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        );
+      }
 
-            {/* Hope message - fades in/out */}
-            <div style={{
-              minHeight: 24,
-              color: '#fcc93b',
-              fontSize: 14,
-              fontWeight: 500,
-              transition: 'opacity 0.5s ease',
-              opacity: hopeMessage ? 1 : 0
-            }}>
-              {hopeMessage}
+      // Transition/flattery phase
+      if (phase === 'transition') {
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', zIndex: 2 }}>
+            <div className="glass-card" style={{ maxWidth: 500, width: '100%', padding: 60, textAlign: 'center', animation: 'scaleIn 0.4s var(--ease-out-expo)' }}>
+              <div style={{ fontSize: 48, marginBottom: 24 }}>✓</div>
+              <p style={{ color: '#fcc93b', fontSize: 18, fontWeight: 600, lineHeight: 1.6, opacity: showFlattery ? 1 : 0, transition: 'opacity 0.5s' }}>{flattery}</p>
             </div>
           </div>
+        );
+      }
 
-          <style>{`
-            @keyframes competitorSpin {
-              to { transform: rotate(360deg); }
-            }
-            @keyframes competitorPulse {
-              0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-              40% { transform: scale(1); opacity: 1; }
-            }
-          `}</style>
+      // Preview phase (vague non-result, then continues)
+      if (phase === 'preview') {
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', zIndex: 2 }}>
+            <div className="glass-card" style={{ maxWidth: 580, width: '100%', padding: 48, animation: 'scaleIn 0.6s var(--ease-out-expo)' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+                <h2 style={{ fontFamily: "'Archivo'", fontSize: 26, fontWeight: 700, marginBottom: 12, color: '#fff' }}>Preliminary Insights</h2>
+                <div style={{ background: 'var(--bg-tertiary)', borderRadius: 8, padding: '8px 16px', display: 'inline-block', marginBottom: 16 }}>
+                  <span style={{ color: '#fcc93b', fontWeight: 600 }}>{progress.toFixed(1)}%</span>
+                  <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>calibrated</span>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(60, 143, 199, 0.1)', border: '1px solid rgba(60, 143, 199, 0.2)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.7, marginBottom: 16 }}>
+                  Based on your responses, your organization demonstrates <span style={{ color: '#fff', fontWeight: 600 }}>above-average operational awareness</span> in senior living billing operations.
+                </p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.7, marginBottom: 0 }}>
+                  To provide <span style={{ color: '#fcc93b' }}>precise, actionable benchmarks</span>, we need a bit more calibration data. Organizations at your level typically benefit from our deep-dive analysis.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn-primary" onClick={handleContinueFromPreview} style={{ flex: 1 }}>
+                  Continue Calibration
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 10, verticalAlign: 'middle' }}>
+                    <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <button onClick={handleContinueFromPreview} style={{ width: '100%', marginTop: 12, padding: '12px 24px', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 8, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14 }}>
+                Schedule a call to discuss results
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Questions phase (main loop)
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', zIndex: 2 }}>
+          <div className="glass-card" style={{ maxWidth: 640, width: '100%', padding: 48, animation: 'scaleIn 0.5s var(--ease-out-expo)' }}>
+            {/* Progress section */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 500 }}>{getPhaseLabel()}</span>
+                <span style={{ color: '#fcc93b', fontSize: 13, fontWeight: 600 }}>{progress.toFixed(1)}% calibrated</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: 'linear-gradient(90deg, #3c8fc7, #fcc93b)', borderRadius: 3, width: `${progress}%`, transition: 'width 0.5s ease' }} />
+              </div>
+            </div>
+
+            {/* Question */}
+            <h2 style={{ fontFamily: "'Archivo'", fontSize: 22, fontWeight: 700, marginBottom: 12, color: '#fff', lineHeight: 1.4 }}>
+              {currentQuestion.question}
+            </h2>
+            {currentQuestion.subtext && (
+              <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 28, lineHeight: 1.5 }}>{currentQuestion.subtext}</p>
+            )}
+
+            {/* Answer options */}
+            {currentQuestion.type === 'single' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+                {currentQuestion.options.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentAnswer(opt)}
+                    style={{
+                      padding: '14px 18px',
+                      background: currentAnswer === opt ? 'rgba(60, 143, 199, 0.2)' : 'var(--bg-tertiary)',
+                      border: currentAnswer === opt ? '2px solid #3c8fc7' : '2px solid transparent',
+                      borderRadius: 10,
+                      color: currentAnswer === opt ? '#fff' : 'var(--text-secondary)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: 15,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {currentQuestion.type === 'slider' && (
+              <div style={{ marginBottom: 32 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', marginBottom: 24 }}>
+                  <div style={{ fontSize: 48, fontWeight: 700, color: '#3c8fc7' }}>
+                    {currentAnswer || currentQuestion.min || 50}
+                  </div>
+                  <div style={{ fontSize: 18, color: 'var(--text-secondary)', marginLeft: 8 }}>{currentQuestion.unit}</div>
+                </div>
+                <input
+                  type="range"
+                  min={currentQuestion.min || 0}
+                  max={currentQuestion.max || 100}
+                  value={currentAnswer || currentQuestion.min || 50}
+                  onChange={(e) => setCurrentAnswer(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+                  <span>{currentQuestion.min}{currentQuestion.unit}</span>
+                  <span>{currentQuestion.max}{currentQuestion.unit}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation */}
+            <button
+              className="btn-primary"
+              onClick={handleNext}
+              style={{ width: '100%', opacity: (currentAnswer || currentQuestion.type === 'slider') ? 1 : 0.5, pointerEvents: (currentAnswer || currentQuestion.type === 'slider') ? 'auto' : 'none' }}
+            >
+              Continue
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 10, verticalAlign: 'middle' }}>
+                <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       );
     };
