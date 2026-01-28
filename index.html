@@ -47,6 +47,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- V4.13: Content Security Policy - restricts resource loading to known origins -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdnjs.cloudflare.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    img-src 'self' data: blob:;
+    connect-src 'self' https://hook.us2.make.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Senior Living Payment Readiness Assessment</title>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -484,13 +496,13 @@
       render() {
         if (this.state.hasError) {
           return (
-            <div style={{ padding: 40, background: '#1a1a2e', color: '#fff', minHeight: '100vh' }}>
-              <h1 style={{ color: '#ef4444' }}>Something went wrong</h1>
-              <pre style={{ background: '#0a0a15', padding: 20, borderRadius: 8, overflow: 'auto', fontSize: 12 }}>
-                {this.state.error && this.state.error.toString()}
-                {this.state.errorInfo && this.state.errorInfo.componentStack}
-              </pre>
-              <button onClick={() => window.location.reload()} style={{ marginTop: 20, padding: '10px 20px', background: '#3c8fc7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+            <div style={{ padding: 40, background: '#1a1a2e', color: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>&#9888;</div>
+              <h1 style={{ color: '#fff', fontSize: 24, marginBottom: 8 }}>Something went wrong</h1>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, maxWidth: 400, lineHeight: 1.6, marginBottom: 24 }}>
+                We encountered an unexpected issue loading the assessment. Please reload the page to try again.
+              </p>
+              <button onClick={() => window.location.reload()} style={{ padding: '12px 28px', background: '#3c8fc7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
                 Reload Page
               </button>
             </div>
@@ -802,7 +814,7 @@
     // ============================================
     // CONTACT FORM - V4.1: Now includes facility type with segment-conditional fields
     // ============================================
-    const ContactForm = ({ onSubmit }) => {
+    const ContactForm = ({ onSubmit, onCompetitorBlocked }) => {
       const [formData, setFormData] = useState({
         name: '', email: '', organization: '',
         facilityType: '', // Now captured here instead of as first question
@@ -811,6 +823,19 @@
       const [errors, setErrors] = useState({});
       const [focusedField, setFocusedField] = useState(null);
       const [hpField, setHpField] = useState(''); // V4.13: Honeypot for bot detection
+
+      // V4.14: Email domain blacklists
+      const FREE_EMAIL_DOMAINS = [
+        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com',
+        'icloud.com', 'mail.com', 'protonmail.com', 'zoho.com', 'yandex.com',
+        'gmx.com', 'inbox.com', 'live.com', 'msn.com', 'me.com',
+        'comcast.net', 'verizon.net', 'att.net', 'sbcglobal.net', 'cox.net'
+      ];
+      const COMPETITOR_DOMAINS = [
+        'instamed.com', 'waystar.com', 'cedar.com', 'transactcare.com',
+        'inovalon.com', 'revspringinc.com', 'availity.com', 'inboxhealth.com',
+        'caregrove.com', 'alineops.com', 'yardi.com'
+      ];
 
       // Facility type options (from core engine) - V4.1: IL+AL combined into Senior Living
       const facilityOptions = [
@@ -833,6 +858,17 @@
         if (formData.name.trim().length > 100) newErrors.name = 'Name is too long';
         if (!formData.email.trim()) newErrors.email = 'Required';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) newErrors.email = 'Please enter a valid email';
+        else {
+          // V4.14: Email domain validation
+          const emailDomain = formData.email.trim().toLowerCase().split('@')[1];
+          if (FREE_EMAIL_DOMAINS.includes(emailDomain)) {
+            newErrors.email = 'Please use your business email address';
+          } else if (COMPETITOR_DOMAINS.includes(emailDomain)) {
+            // Competitor detected - trigger special screen
+            onCompetitorBlocked && onCompetitorBlocked();
+            return;
+          }
+        }
         if (!formData.organization.trim()) newErrors.organization = 'Required';
         if (formData.organization.trim().length > 200) newErrors.organization = 'Organization name is too long';
         if (!formData.facilityType) newErrors.facilityType = 'Please select your facility type';
@@ -1374,6 +1410,162 @@
             </div>
             </div>{/* Close animated card wrapper */}
           </div>
+        </div>
+      );
+    };
+
+    // ============================================
+    // COMPETITOR BLOCKED SCREEN (V4.14)
+    // Retro terminal "NOPE" animation for competitor domains
+    // ============================================
+    const CompetitorBlockedScreen = () => {
+      const [displayText, setDisplayText] = useState('');
+      const [showCursor, setShowCursor] = useState(true);
+      const [phase, setPhase] = useState(0); // 0: boot, 1: access, 2: NOPE
+
+      const bootSequence = [
+        '> INITIALIZING SYSTEM...',
+        '> LOADING ASSESSMENT MODULE...',
+        '> VERIFYING CREDENTIALS...',
+        '> ANALYZING EMAIL DOMAIN...',
+        '> ...',
+        '> ACCESS STATUS:'
+      ];
+
+      useEffect(() => {
+        let timeout;
+        if (phase === 0) {
+          // Boot sequence - type each line
+          let lineIndex = 0;
+          let charIndex = 0;
+          const typeNextChar = () => {
+            if (lineIndex >= bootSequence.length) {
+              setTimeout(() => setPhase(1), 500);
+              return;
+            }
+            const currentLine = bootSequence[lineIndex];
+            if (charIndex <= currentLine.length) {
+              const lines = bootSequence.slice(0, lineIndex).join('\n');
+              const currentTyping = currentLine.substring(0, charIndex);
+              setDisplayText(lines + (lineIndex > 0 ? '\n' : '') + currentTyping);
+              charIndex++;
+              timeout = setTimeout(typeNextChar, 30 + Math.random() * 20);
+            } else {
+              lineIndex++;
+              charIndex = 0;
+              timeout = setTimeout(typeNextChar, 200);
+            }
+          };
+          timeout = setTimeout(typeNextChar, 800);
+        } else if (phase === 1) {
+          // Brief pause then NOPE
+          timeout = setTimeout(() => setPhase(2), 600);
+        }
+
+        // Cursor blink
+        const cursorInterval = setInterval(() => setShowCursor(prev => !prev), 530);
+
+        return () => { clearTimeout(timeout); clearInterval(cursorInterval); };
+      }, [phase]);
+
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          background: '#0a0a0a'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 700,
+            background: '#0d1a0d',
+            borderRadius: 12,
+            padding: 32,
+            boxShadow: '0 0 60px rgba(0, 255, 0, 0.15), inset 0 0 120px rgba(0, 0, 0, 0.8)',
+            border: '2px solid #1a3a1a',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Scanline effect */}
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 1px, transparent 2px)',
+              pointerEvents: 'none',
+              zIndex: 2
+            }} />
+
+            {/* CRT flicker overlay */}
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.3) 100%)',
+              pointerEvents: 'none',
+              zIndex: 1
+            }} />
+
+            {/* Terminal content */}
+            <div style={{
+              fontFamily: "'Courier New', monospace",
+              fontSize: 16,
+              color: '#00ff00',
+              textShadow: '0 0 10px #00ff00, 0 0 20px #00ff00',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.6,
+              position: 'relative',
+              zIndex: 3,
+              minHeight: 300
+            }}>
+              {displayText}{showCursor && phase < 2 ? '█' : ''}
+
+              {phase === 2 && (
+                <div style={{
+                  marginTop: 24,
+                  animation: 'nopeReveal 0.8s ease-out forwards'
+                }}>
+                  <div style={{
+                    fontSize: 72,
+                    fontWeight: 'bold',
+                    letterSpacing: 24,
+                    color: '#ff0000',
+                    textShadow: '0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000',
+                    textAlign: 'center',
+                    animation: 'nopeGlitch 0.1s ease-in-out infinite'
+                  }}>
+                    NOPE
+                  </div>
+                  <div style={{
+                    marginTop: 32,
+                    color: '#00aa00',
+                    fontSize: 14,
+                    textAlign: 'center',
+                    opacity: 0,
+                    animation: 'fadeIn 0.5s ease-out 1s forwards'
+                  }}>
+                    > ACCESS DENIED
+                    <br />
+                    > SESSION TERMINATED
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes nopeReveal {
+              0% { opacity: 0; transform: scale(0.5); }
+              50% { opacity: 1; transform: scale(1.1); }
+              100% { opacity: 1; transform: scale(1); }
+            }
+            @keyframes nopeGlitch {
+              0%, 100% { transform: translate(0); }
+              25% { transform: translate(-2px, 1px); }
+              50% { transform: translate(2px, -1px); }
+              75% { transform: translate(-1px, -1px); }
+            }
+          `}</style>
         </div>
       );
     };
@@ -3447,12 +3639,16 @@
           <ParticleField />
 
           {screen === 'welcome' && <WelcomeScreen onStart={() => setScreen('contact')} />}
-          {screen === 'contact' && <ContactForm onSubmit={(data) => {
-            // V4.1: Facility type now comes from contact form, set it in answers for question routing
-            setFormData(data);
-            setAnswers(prev => ({ ...prev, facility_type: data.facilityType }));
-            setScreen('questions');
-          }} />}
+          {screen === 'blocked' && <CompetitorBlockedScreen />}
+          {screen === 'contact' && <ContactForm
+            onSubmit={(data) => {
+              // V4.1: Facility type now comes from contact form, set it in answers for question routing
+              setFormData(data);
+              setAnswers(prev => ({ ...prev, facility_type: data.facilityType }));
+              setScreen('questions');
+            }}
+            onCompetitorBlocked={() => setScreen('blocked')}
+          />}
           {screen === 'questions' && currentQuestion && (
             <QuestionCard
               key={currentQuestion.id}  /* V4.10: CRITICAL - Force new component instance when question changes */
@@ -3491,13 +3687,7 @@
 
             // Send data to webhook (non-blocking)
             sendWebhook(formData, answers, calculatedScores, 'index-production')
-              .then(result => {
-                if (result.success) {
-                  console.log('Assessment data sent successfully:', result.submissionId);
-                } else {
-                  console.warn('Webhook failed:', result.error);
-                }
-              });
+              .catch(() => { /* webhook is non-blocking */ });
 
             setScreen('results');
           }} />}

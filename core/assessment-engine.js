@@ -1627,16 +1627,12 @@ const RecommendationDefinitions = [
     trigger: (answers) => {
       const integration = answers['pcc_integration'];
       return integration === 'Separate systems - billing is managed outside PointClickCare' ||
-             integration === 'Partially integrated - some manual data entry between systems' ||
-             integration === 'Not sure about our PointClickCare integration level';
+             integration === 'Partially integrated - some manual data entry between systems';
     },
     currentState: (answers) => {
       const integration = answers['pcc_integration'];
       if (integration === 'Separate systems - billing is managed outside PointClickCare') {
         return "Billing is separate from PointClickCare - manual data reconciliation required";
-      }
-      if (integration === 'Not sure about our PointClickCare integration level') {
-        return "Integration level unclear - likely manual processes involved";
       }
       return "Partially integrated - some manual data entry between systems";
     },
@@ -1692,8 +1688,7 @@ const RecommendationDefinitions = [
     title: 'Send Individual Statements to Each Payer',
     trigger: (answers) => {
       const recipients = answers['statement_recipients'];
-      return recipients === 'No, we can only send statements to one person' ||
-             recipients === "We haven't needed to do this";
+      return recipients === 'No, we can only send statements to one person';
     },
     currentState: (answers) => {
       if (answers['statement_recipients'] === 'No, we can only send statements to one person') {
@@ -3467,11 +3462,10 @@ function calculateInsights(formData, answers) {
   } else {
     // Non-SNF uses original questions
     const paymentMethods = answers['payment_methods'] || [];
-    acceptsCards = paymentMethods.includes('Credit/debit cards');
+    acceptsCards = paymentMethods.includes('Credit cards') || paymentMethods.includes('Debit cards');
     const convenienceFeeAnswer = answers['convenience_fee'];
-    // V4.10: Show opportunity if they accept cards AND are NOT passing fees
-    // "Yes, we pass through convenience fees" means they're already saving
-    passingFeesToFamilies = (convenienceFeeAnswer === 'Yes, we pass through convenience fees' || convenienceFeeAnswer === 'yes');
+    // V4.13: Match actual option label for convenience fee pass-through detection
+    passingFeesToFamilies = (convenienceFeeAnswer === 'Yes, we pass fees to families who choose card payments');
   }
 
   // V4.10: Calculate potential card fee savings if they accept cards but don't pass fees
@@ -3695,7 +3689,7 @@ function generateCSV(data) {
   rows.push(['Field', 'Value']);
   rows.push(['Submission ID', data.submission_id]);
   rows.push(['Timestamp', data.timestamp]);
-  rows.push(['Assessment Version', 'v4.6']);
+  rows.push(['Assessment Version', 'v4.13']);
   rows.push(['Facility Type', data.segment_label]);
   rows.push(['Name', data.contact.name]);
   rows.push(['Email', data.contact.email]);
@@ -3768,7 +3762,7 @@ const WebhookConfig = {
  */
 async function sendWebhook(formData, answers, scores, uiVersion = 'unknown') {
   if (!WebhookConfig.enabled || !WebhookConfig.url) {
-    console.log('Webhook disabled or no URL configured');
+    // Webhook disabled or no URL configured
     return { success: false, error: 'Webhook disabled' };
   }
 
@@ -3780,7 +3774,7 @@ async function sendWebhook(formData, answers, scores, uiVersion = 'unknown') {
   const payload = {
     submissionId: `pcc-v4-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     timestamp: new Date().toISOString(),
-    assessmentVersion: '4.6',
+    assessmentVersion: '4.13',
 
     contact: {
       name: formData.name || '',
@@ -3827,7 +3821,7 @@ async function sendWebhook(formData, answers, scores, uiVersion = 'unknown') {
       clearTimeout(timeoutId);
 
       if (response.ok) {
-        console.log('Webhook sent successfully');
+        // Webhook sent successfully
         return { success: true, submissionId: payload.submissionId };
       } else {
         lastError = `HTTP ${response.status}: ${response.statusText}`;
@@ -5717,7 +5711,6 @@ if (typeof module !== 'undefined' && module.exports) {
     ResultsFlow,
     ResultsFlowV47,
     SourceCitations,
-    WebhookConfig,
     getVisibleQuestions,
     calculateQuestionScore,
     calculateScores,
