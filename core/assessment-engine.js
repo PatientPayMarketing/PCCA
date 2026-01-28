@@ -687,7 +687,8 @@ const Questions = [
     }
   },
 
-  // FAM1c: Multi-Guarantor PAYERS COUNT (V4.4 - diagnostic only, no scoring)
+  // FAM1c: Multi-Guarantor PAYERS COUNT (V4.14 - slider, diagnostic only)
+  // V4.14: Changed from single-select to slider 1-8 for precise data capture
   // V4.6: SNF excluded - they have separate flow
   {
     id: 'multi_guarantor_payers',
@@ -695,17 +696,18 @@ const Questions = [
     categoryIndex: null,
     isDiagnostic: true,
     question: "For residents with multi-guarantor billing, how many family members typically share the bill?",
-    type: "single",
+    subtext: "From adult children to extended family members sharing financial responsibility",
+    type: "slider",
     segments: ['SL', 'MC', 'CCRC'], // V4.6: SNF excluded
     conditional: {
       questionId: 'multi_guarantor_capability',
       showIfIncludesAny: ["yes_manual", "yes_partial", "yes_automated"]
     },
-    options: [
-      { label: "2 family members", value: 2, score: null },
-      { label: "3-4 family members", value: 3.5, score: null },
-      { label: "5 or more family members", value: 5, score: null }
-    ],
+    min: 1,
+    max: 8,
+    step: 1,
+    default: 2,
+    unit: " family members",
     insightUse: "Feeds financial insight calculations for total payers managed"
   },
 
@@ -3446,12 +3448,8 @@ function calculateInsights(formData, answers) {
 
     if (multiGuarantorCapability && multiGuarantorCapability !== 'no') {
       hasMultiGuarantorCapability = true;
-      // Get avg payers from diagnostic question (or default to 2)
-      avgPayersPerResident = multiGuarantorPayersAnswer || 2;
-      if (typeof avgPayersPerResident === 'string') {
-        // Handle stored numeric strings from value attribute
-        avgPayersPerResident = parseFloat(avgPayersPerResident) || 2;
-      }
+      // V4.14: Get avg payers from slider (1-8, integer) or default to 2
+      avgPayersPerResident = parseInt(multiGuarantorPayersAnswer) || 2;
 
       // Calculate residents using multi-guarantor and total payers
       multiGuarantorResidents = Math.round(occupiedBeds * multiGuarantorAdoption);
@@ -4501,38 +4499,99 @@ async function generatePDFReport(formData, answers, scores) {
 
     y += 125;
 
-    // Multi-guarantor insight (if applicable) - V4.9: Cleaner design
-    // V4.12.2: Only show if there's enough space on the page (need ~110px + footer space)
-    const multiGuarantorHeight = 110;
+    // Multi-guarantor insight (if applicable) - V4.14: Enhanced with complexity multiplier & 3-column metrics
+    // V4.12.2: Only show if there's enough space on the page
+    const multiGuarantorHeight = 155;
     const footerSpace = 60;
     if (insights.avgPayersPerResident > 1 && (y + multiGuarantorHeight + footerSpace < pageHeight)) {
+      const personTerm = segment === 'SNF' ? 'patient' : 'resident';
+      const personTermPlural = segment === 'SNF' ? 'Patients' : 'Residents';
+      const complexityMultiplier = insights.avgPayersPerResident.toFixed(1);
+
+      // Main container
       setFillColor([240, 249, 255]); // Light blue background
-      doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+      doc.roundedRect(margin, y, contentWidth, 140, radius.lg, radius.lg, 'F');
 
-      setFillColor(colors.secondary);
-      doc.roundedRect(margin, y, 5, 90, radius.sm, radius.sm, 'F');
+      // Left accent bar
+      setFillColor([139, 92, 246]); // Purple accent (matches UI)
+      doc.roundedRect(margin, y, 5, 140, radius.sm, radius.sm, 'F');
 
-      setColor(colors.secondary);
+      // Title
+      setColor([139, 92, 246]);
       doc.setFontSize(fontSize.lg);
       doc.setFont('helvetica', 'bold');
-      doc.text('Multi-Guarantor Opportunity', margin + spacing.lg, y + 26);
+      doc.text('Billing Complexity Multiplier', margin + spacing.lg, y + 24);
 
-      setColor(colors.textDark);
-      doc.setFontSize(28);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${insights.avgPayersPerResident}`, margin + spacing.lg, y + 58);
-
+      // Subtitle text
       setColor(colors.textMuted);
       doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      // V4.6: Use "patient" for SNF, "resident" for others
-      const personTerm = segment === 'SNF' ? 'patient' : 'resident';
-      doc.text(`avg payers/${personTerm}`, margin + 55, y + 58);
+      doc.text(`Each ${personTerm} generates ${insights.avgPayersPerResident} billing relationships`, margin + spacing.lg, y + 42);
 
-      doc.setFontSize(fontSize.sm);
-      doc.text(`${insights.totalPayers} total family payers  |  ${insights.multiGuarantorResidents} ${personTerm}s with split billing needs`, margin + spacing.lg, y + 78);
+      // 3-column metric boxes
+      const metricY = y + 54;
+      const metricBoxWidth = (contentWidth - spacing.lg * 2 - 16) / 3;
+      const metricBoxHeight = 50;
 
-      y += 110;
+      // Column 1: Complexity multiplier
+      setFillColor([245, 240, 255]); // Light purple
+      doc.roundedRect(margin + spacing.lg, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+      setColor([139, 92, 246]);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${complexityMultiplier}x`, margin + spacing.lg + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Complexity vs. single payer', margin + spacing.lg + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+      // Column 2: Total family payers
+      const col2X = margin + spacing.lg + metricBoxWidth + 8;
+      setFillColor([235, 248, 255]); // Light blue
+      doc.roundedRect(col2X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+      setColor(colors.secondary);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${insights.totalPayers}`, col2X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Total family payers', col2X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+      // Column 3: Split billing residents/patients
+      const col3X = col2X + metricBoxWidth + 8;
+      setFillColor([236, 253, 245]); // Light green
+      doc.roundedRect(col3X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+      setColor([16, 185, 129]); // Green
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${insights.multiGuarantorResidents}`, col3X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${personTermPlural} with split billing`, col3X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+      // Impact callout bar (if inquiry cost exists)
+      if (insights.inquiryCost > 0) {
+        const calloutY = metricY + metricBoxHeight + 10;
+        setFillColor([255, 251, 235]); // Light amber
+        doc.roundedRect(margin + spacing.lg, calloutY, contentWidth - spacing.lg * 2, 24, radius.sm, radius.sm, 'F');
+        setFillColor([252, 201, 59]); // Amber left border
+        doc.roundedRect(margin + spacing.lg, calloutY, 3, 24, 1, 1, 'F');
+
+        setColor([180, 140, 20]);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`$${insights.inquiryCost.toLocaleString()}/year`, margin + spacing.lg + 10, calloutY + 15);
+        doc.setFont('helvetica', 'normal');
+        setColor(colors.textMuted);
+        const impactText = insights.avgPayersPerResident > 2
+          ? `estimated inquiry cost — ${insights.avgPayersPerResident} payers per ${personTerm} multiply coordination burden`
+          : 'estimated inquiry cost — individual statements could reduce this by 60-70%';
+        doc.text(impactText, margin + spacing.lg + 80, calloutY + 15);
+      }
+
+      y += multiGuarantorHeight;
     }
 
     // ROI Calculation Box - V4.9: Better visual design with columns
