@@ -1416,57 +1416,47 @@
 
     // ============================================
     // COMPETITOR BLOCKED SCREEN (V4.14)
-    // Retro terminal "NOPE" animation for competitor domains
+    // Infinite loading screen with false hope messages
     // ============================================
     const CompetitorBlockedScreen = () => {
-      const [displayText, setDisplayText] = useState('');
-      const [showCursor, setShowCursor] = useState(true);
-      const [phase, setPhase] = useState(0); // 0: boot, 1: access, 2: NOPE
+      const [hopeMessage, setHopeMessage] = useState('');
 
-      const bootSequence = [
-        '> INITIALIZING SYSTEM...',
-        '> LOADING ASSESSMENT MODULE...',
-        '> VERIFYING CREDENTIALS...',
-        '> ANALYZING EMAIL DOMAIN...',
-        '> ...',
-        '> ACCESS STATUS:'
+      const hopeMessages = [
+        "Almost there...",
+        "Just a moment...",
+        "Hang tight...",
+        "Loading your results...",
+        "Nearly ready...",
+        "One moment please...",
+        "Finalizing...",
+        "So close...",
+        "Any second now...",
+        "Preparing your assessment...",
+        "Just a few more seconds...",
+        "Thanks for your patience...",
+        "Almost done...",
+        "Wrapping up...",
+        "Hold on...",
+        "Getting everything ready...",
+        "This won't take long...",
+        "Optimizing results...",
+        "Bear with us...",
+        "Loading complete soon..."
       ];
 
       useEffect(() => {
-        let timeout;
-        if (phase === 0) {
-          // Boot sequence - type each line
-          let lineIndex = 0;
-          let charIndex = 0;
-          const typeNextChar = () => {
-            if (lineIndex >= bootSequence.length) {
-              setTimeout(() => setPhase(1), 500);
-              return;
-            }
-            const currentLine = bootSequence[lineIndex];
-            if (charIndex <= currentLine.length) {
-              const lines = bootSequence.slice(0, lineIndex).join('\n');
-              const currentTyping = currentLine.substring(0, charIndex);
-              setDisplayText(lines + (lineIndex > 0 ? '\n' : '') + currentTyping);
-              charIndex++;
-              timeout = setTimeout(typeNextChar, 30 + Math.random() * 20);
-            } else {
-              lineIndex++;
-              charIndex = 0;
-              timeout = setTimeout(typeNextChar, 200);
-            }
-          };
-          timeout = setTimeout(typeNextChar, 800);
-        } else if (phase === 1) {
-          // Brief pause then NOPE
-          timeout = setTimeout(() => setPhase(2), 600);
-        }
+        let messageCount = 0;
+        // Show a new hope message every 30 seconds
+        const interval = setInterval(() => {
+          const idx = messageCount < hopeMessages.length
+            ? messageCount
+            : Math.floor(Math.random() * hopeMessages.length);
+          setHopeMessage(hopeMessages[idx]);
+          messageCount++;
+        }, 30000);
 
-        // Cursor blink
-        const cursorInterval = setInterval(() => setShowCursor(prev => !prev), 530);
-
-        return () => { clearTimeout(timeout); clearInterval(cursorInterval); };
-      }, [phase]);
+        return () => clearInterval(interval);
+      }, []);
 
       return (
         <div style={{
@@ -1475,95 +1465,79 @@
           alignItems: 'center',
           justifyContent: 'center',
           padding: 24,
-          background: '#0a0a0a'
+          position: 'relative',
+          zIndex: 2
         }}>
-          <div style={{
+          <div className="glass-card" style={{
+            maxWidth: 500,
             width: '100%',
-            maxWidth: 700,
-            background: '#0d1a0d',
-            borderRadius: 12,
-            padding: 32,
-            boxShadow: '0 0 60px rgba(0, 255, 0, 0.15), inset 0 0 120px rgba(0, 0, 0, 0.8)',
-            border: '2px solid #1a3a1a',
-            position: 'relative',
-            overflow: 'hidden'
+            padding: 60,
+            textAlign: 'center',
+            animation: 'scaleIn 0.6s var(--ease-out-expo)'
           }}>
-            {/* Scanline effect */}
+            {/* Spinner */}
             <div style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              background: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 1px, transparent 2px)',
-              pointerEvents: 'none',
-              zIndex: 2
+              width: 64,
+              height: 64,
+              margin: '0 auto 32px',
+              border: '3px solid var(--bg-tertiary)',
+              borderTopColor: '#3c8fc7',
+              borderRadius: '50%',
+              animation: 'competitorSpin 1s linear infinite'
             }} />
 
-            {/* CRT flicker overlay */}
-            <div style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.3) 100%)',
-              pointerEvents: 'none',
-              zIndex: 1
-            }} />
-
-            {/* Terminal content */}
-            <div style={{
-              fontFamily: "'Courier New', monospace",
-              fontSize: 16,
-              color: '#00ff00',
-              textShadow: '0 0 10px #00ff00, 0 0 20px #00ff00',
-              whiteSpace: 'pre-wrap',
-              lineHeight: 1.6,
-              position: 'relative',
-              zIndex: 3,
-              minHeight: 300
+            <h2 style={{
+              fontFamily: "'Archivo'",
+              fontSize: 24,
+              fontWeight: 700,
+              marginBottom: 12,
+              color: '#fff'
             }}>
-              {displayText}{showCursor && phase < 2 ? '█' : ''}
+              Preparing Your Assessment
+            </h2>
 
-              {phase === 2 && (
-                <div style={{
-                  marginTop: 24,
-                  animation: 'nopeReveal 0.8s ease-out forwards'
-                }}>
-                  <div style={{
-                    fontSize: 72,
-                    fontWeight: 'bold',
-                    letterSpacing: 24,
-                    color: '#ff0000',
-                    textShadow: '0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000',
-                    textAlign: 'center',
-                    animation: 'nopeGlitch 0.1s ease-in-out infinite'
-                  }}>
-                    NOPE
-                  </div>
-                  <div style={{
-                    marginTop: 32,
-                    color: '#00aa00',
-                    fontSize: 14,
-                    textAlign: 'center',
-                    opacity: 0,
-                    animation: 'fadeIn 0.5s ease-out 1s forwards'
-                  }}>
-                    > ACCESS DENIED
-                    <br />
-                    > SESSION TERMINATED
-                  </div>
-                </div>
-              )}
+            <p style={{
+              color: 'var(--text-secondary)',
+              fontSize: 15,
+              marginBottom: 24,
+              lineHeight: 1.6
+            }}>
+              We're analyzing industry benchmarks and customizing your experience...
+            </p>
+
+            {/* Progress dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#3c8fc7',
+                  animation: `competitorPulse 1.4s ease-in-out ${i * 0.2}s infinite`
+                }} />
+              ))}
+            </div>
+
+            {/* Hope message - fades in/out */}
+            <div style={{
+              minHeight: 24,
+              color: '#fcc93b',
+              fontSize: 14,
+              fontWeight: 500,
+              transition: 'opacity 0.5s ease',
+              opacity: hopeMessage ? 1 : 0
+            }}>
+              {hopeMessage}
             </div>
           </div>
 
           <style>{`
-            @keyframes nopeReveal {
-              0% { opacity: 0; transform: scale(0.5); }
-              50% { opacity: 1; transform: scale(1.1); }
-              100% { opacity: 1; transform: scale(1); }
+            @keyframes competitorSpin {
+              to { transform: rotate(360deg); }
             }
-            @keyframes nopeGlitch {
-              0%, 100% { transform: translate(0); }
-              25% { transform: translate(-2px, 1px); }
-              50% { transform: translate(2px, -1px); }
-              75% { transform: translate(-1px, -1px); }
+            @keyframes competitorPulse {
+              0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+              40% { transform: scale(1); opacity: 1; }
             }
           `}</style>
         </div>
