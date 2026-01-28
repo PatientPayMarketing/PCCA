@@ -445,6 +445,28 @@ const Questions = [
     unit: "patients/year"
   },
 
+  // SNF-CTX1b: Payer Sources (V4.14 - diagnostic credibility question)
+  // V4.14: Shows we understand their world - no scoring, not in results
+  {
+    id: 'snf_payer_sources',
+    category: null, // Diagnostic - no scoring
+    categoryIndex: null,
+    isDiagnostic: true,
+    question: "What payer sources does your organization accept?",
+    subtext: "Select all that apply",
+    type: "multi",
+    segments: ['SNF'],
+    options: [
+      { label: "Medicaid", value: "medicaid" },
+      { label: "Medicare", value: "medicare" },
+      { label: "Medicare Advantage", value: "medicare_advantage" },
+      { label: "Private Pay", value: "private_pay" },
+      { label: "Private Insurance", value: "private_insurance" },
+      { label: "Other", value: "other" }
+    ]
+    // No scoring function - purely diagnostic for credibility
+  },
+
   // SNF-CTX2: Monthly Patient Billing Volume (V4.11 - replaces payer mix)
   // V4.11: Simplified to ask directly about patient responsibility billing
   // This is more meaningful than payer mix because it's what PatientPay actually optimizes
@@ -575,19 +597,26 @@ const Questions = [
       { index: 0, weight: 0.70 }, // Operations (primary)
       { index: 1, weight: 0.30 }  // Family Experience (secondary)
     ],
-    question: "How much staff time per week is spent on 'who paid what?' inquiries from families?",
-    type: "single",
+    // V4.14: Reframed from hours to staff count - more intuitive for users
+    question: "How many staff members regularly handle billing questions and payment inquiries from families?",
+    subtext: "Include anyone who spends significant time on 'who paid what?' calls, payment status questions, or helping families understand their bills.",
+    type: "slider",
     segments: ['SL', 'MC', 'CCRC'], // V4.6: SNF excluded - has own flow
-    // V4.3: Most burden first (least sophisticated situation)
-    options: [
-      { label: "8+ hours per week", score: 25 },
-      { label: "We don't track this but it's significant", score: 35 },
-      { label: "4-8 hours per week", score: 50 },
-      { label: "1-3 hours per week", score: 75 },
-      { label: "Almost none (less than 1 hour)", score: 100 }
-    ],
+    min: 0,
+    max: 10,
+    step: 1,
+    default: 2,
+    unit: "staff",
+    // V4.14: Scoring based on staff count - fewer = more efficient
+    scoring: (val) => {
+      if (val <= 1) return 100;  // Minimal burden or highly efficient
+      if (val === 2) return 75;  // Normal for small-medium facility
+      if (val <= 4) return 50;   // Moderate burden, room for improvement
+      if (val <= 6) return 35;   // High burden, significant opportunity
+      return 20;                  // Very high burden, major opportunity
+    },
     insight: {
-      trigger: ["4-8 hours per week", "8+ hours per week", "We don't track this but it's significant"],
+      trigger: (val) => val >= 2,
       message: "37% of families have missed bills due to payment complexity. Self-service portals with individual family member access dramatically reduce these inquiries.",
       annualCostCalculation: true
     }
@@ -1653,19 +1682,18 @@ const RecommendationDefinitions = [
     id: 'reduce_coordination_burden',
     category: 'operations',
     title: 'Reduce Family Billing Inquiries',
+    // V4.14: Updated trigger for staff count slider (was hour-based options)
     trigger: (answers) => {
-      const burden = answers['coordination_burden'];
-      return burden === '8+ hours per week' ||
-             burden === '4-8 hours per week' ||
-             burden === "We don't track this but it's significant";
+      const staffCount = answers['coordination_burden'] || 0;
+      return staffCount >= 2; // Opportunity exists when 2+ staff on inquiries
     },
     currentState: (answers) => {
-      const burden = answers['coordination_burden'];
-      if (burden === '8+ hours per week') return "Staff spends 8+ hours per week on billing inquiries";
-      if (burden === '4-8 hours per week') return "Staff spends 4-8 hours per week on billing inquiries";
-      return "Significant staff time on billing inquiries (not formally tracked)";
+      const staffCount = answers['coordination_burden'] || 0;
+      if (staffCount >= 5) return `You have ${staffCount} staff members handling billing inquiries - a significant operational burden`;
+      if (staffCount >= 3) return `You have ${staffCount} staff members handling billing inquiries`;
+      return `You have ${staffCount} staff members spending time on billing questions`;
     },
-    targetState: "Less than 1 hour per week on billing inquiries",
+    targetState: "Minimal staff time on billing inquiries with self-service handling most questions",
     impact: {
       description: "Self-service access and clear statements dramatically reduce 'who paid what?' calls",
       metrics: [
@@ -2576,12 +2604,11 @@ const PatientPayProjectionConfig = {
   },
 
   // Reduce coordination burden
+  // V4.14: Updated for staff count slider (was hour-based options)
   reduce_coordination: {
     condition: (answers) => {
-      const burden = answers['coordination_burden'];
-      return burden === '8+ hours per week' ||
-             burden === '4-8 hours per week' ||
-             burden === "We don't track this but it's significant";
+      const staffCount = answers['coordination_burden'] || 0;
+      return staffCount >= 2; // Opportunity when 2+ staff on inquiries
     },
     categoryImpacts: [20, 15, 0],
     overallImpact: 8,
@@ -3433,16 +3460,16 @@ function calculateInsights(formData, answers) {
     }
   }
 
-  // Coordination burden calculations
-  const coordinationBurden = answers['coordination_burden'];
-  let weeklyHoursOnInquiries = 2;
-  if (coordinationBurden === '1-3 hours per week') weeklyHoursOnInquiries = 2;
-  else if (coordinationBurden === '4-8 hours per week') weeklyHoursOnInquiries = 6;
-  else if (coordinationBurden === '8+ hours per week') weeklyHoursOnInquiries = 10;
-  else if (coordinationBurden === "We don't track this but it's significant") weeklyHoursOnInquiries = 5;
+  // V4.14: Coordination burden calculations - now based on staff count
+  // Staff count × estimated salary allocation (30% of $50K salary spent on billing inquiries)
+  const staffOnInquiries = answers['coordination_burden'] || 2;
+  const avgSalary = 50000;
+  const inquiryTimeAllocation = 0.30; // 30% of their time on billing inquiries
+  const inquiryCost = Math.round(staffOnInquiries * avgSalary * inquiryTimeAllocation);
 
+  // V4.14: Keep legacy fields for backward compatibility, estimate hours from staff count
+  const weeklyHoursOnInquiries = staffOnInquiries * 8; // Estimate ~8 hours/week per staff member
   const annualInquiryHours = weeklyHoursOnInquiries * 52;
-  const inquiryCost = annualInquiryHours * 25; // $25/hour estimate
 
   // V4.8/V4.9: Credit card fee absorption calculation
   // V4.13: For SNF, use snf_payment_types; For non-SNF, use payment_methods and convenience_fee
@@ -3506,10 +3533,13 @@ function calculateInsights(formData, answers) {
     avgPayersPerResident,
     totalPayers,
     multiGuarantorResidents,
+    // V4.14: Staff-based coordination burden metrics
+    staffOnInquiries,
     weeklyHoursOnInquiries,
     staffHoursPerWeek: weeklyHoursOnInquiries, // Alias for PDF ROI calculations
     annualInquiryHours,
     inquiryCost,
+    potentialInquirySavings: Math.round(inquiryCost * 0.65), // 65% reduction with self-service
     // V4.8: Credit card fee absorption
     acceptsCards,
     absorbingCardFees,
@@ -3663,7 +3693,7 @@ function prepareExportData(formData, answers, scores) {
       limited_payment_methods: !answers['payment_methods'] || answers['payment_methods'].length < 3,
       paper_statements: answers['statement_delivery'] === 'Paper mail only' || (Array.isArray(answers['statement_delivery']) && answers['statement_delivery'].length === 1 && answers['statement_delivery'][0] === 'Paper mail'),
       manual_processing: answers['statement_processing'] === 'Entirely manual (print, stuff, mail)' || answers['statement_processing'] === 'Mostly manual with spreadsheet tracking',
-      high_coordination_burden: ['4-8 hours per week', '8+ hours per week', "We don't track this but it's significant"].includes(answers['coordination_burden']),
+      high_coordination_burden: (answers['coordination_burden'] || 0) >= 3, // V4.14: Updated for staff count slider
       // V4.4: Tour billing opportunity flag (when score ≤ 45)
       tour_billing_opportunity: answers['tour_billing'] === 'We try to avoid billing topics during tours' || answers['tour_billing'] === 'We briefly mention it if asked',
       // V4.4: Family satisfaction opportunity
@@ -4516,12 +4546,13 @@ async function generatePDFReport(formData, answers, scores) {
     doc.text('ESTIMATED ROI WITH PATIENTPAY', margin + spacing.lg, y + 26);
 
     // Calculate ROI estimates
-    const staffHoursSaved = insights.staffHoursPerWeek ? Math.round(insights.staffHoursPerWeek * 0.6 * 52) : 0; // 60% reduction
+    // V4.14: Updated for staff-based inquiry cost calculation
+    const inquiryCostSavings = insights.potentialInquirySavings || 0;
     const arReduction = insights.potentialFreedCash || 0;
     const autopayIncrease = formData.bedCount ? Math.round(formData.bedCount * 0.25 * (formData.avgMonthlyRate || 5000) * 12 * 0.15) : 0; // 15% revenue acceleration from 25% more autopay
 
     const roiItems = [
-      { label: 'Staff Hours Saved/Year', value: staffHoursSaved ? `~${staffHoursSaved} hours` : 'Calculate with staff time data' },
+      { label: 'Inquiry Cost Savings', value: inquiryCostSavings ? formatCurrency(inquiryCostSavings) + '/year' : 'Based on staff data' },
       { label: 'Cash Freed from A/R', value: formatCurrency(arReduction) },
       { label: 'Revenue Acceleration', value: autopayIncrease ? formatCurrency(autopayIncrease) : 'Based on autopay increase' }
     ];
@@ -5224,7 +5255,7 @@ async function generatePDFReport(formData, answers, scores) {
       keyMetrics: [
         { label: 'PCC Integration', answer: answers['pcc_integration'] || 'Not specified' },
         { label: 'Statement Processing', answer: answers['statement_processing'] || 'Not specified' },
-        { label: 'Coordination Time', answer: answers['coordination_burden'] || 'Not specified' }
+        { label: 'Staff on Inquiries', answer: answers['coordination_burden'] ? `${answers['coordination_burden']} staff` : 'Not specified' }
       ],
       improvements: scores.categories[0] < 80 ? [
         'Automate statement generation and delivery',
