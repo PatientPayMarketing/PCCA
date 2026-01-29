@@ -2064,16 +2064,16 @@
             </h1>
 
             <div style={{ position: 'relative', width: 280, height: 280, margin: '0 auto 24px' }}>
-              <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: `radial-gradient(circle, ${getScoreColor(scores.overall)}30 0%, transparent 70%)`,
+              <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: `radial-gradient(circle, ${getScoreColor(scores.overall, segment)}30 0%, transparent 70%)`,
                 animation: 'celebratePulse 2s ease-in-out infinite' }} />
               <ProgressRing progress={scores.overall} size={280} strokeWidth={16} delay={300} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 72, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(scores.overall),
-                  textShadow: `0 0 50px ${getScoreColor(scores.overall)}50`, animation: 'numberPop 0.8s ease-out 0.5s both' }}>
+                <div style={{ fontSize: 72, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(scores.overall, segment),
+                  textShadow: `0 0 50px ${getScoreColor(scores.overall, segment)}50`, animation: 'numberPop 0.8s ease-out 0.5s both' }}>
                   <AnimatedNumber value={scores.overall} delay={500} />
                 </div>
-                <div style={{ fontSize: 20, fontFamily: "'Archivo'", color: getScoreColor(scores.overall), fontWeight: 700 }}>
-                  {getScoreLevel(scores.overall)}
+                <div style={{ fontSize: 20, fontFamily: "'Archivo'", color: getScoreColor(scores.overall, segment), fontWeight: 700 }}>
+                  {getScoreLevel(scores.overall, segment)}
                 </div>
               </div>
             </div>
@@ -2767,7 +2767,7 @@
                 <h2 style={{ fontFamily: "'Archivo'", fontSize: 32, fontWeight: 700, color: categoryColors[categoryIndex], marginBottom: 4 }}>
                   {getCategoryName(categoryIndex, answers['facility_type'])}
                 </h2>
-                <div style={{ fontSize: 16, color: getScoreColor(score), fontWeight: 600 }}>{getScoreLevel(score)}</div>
+                <div style={{ fontSize: 16, color: getScoreColor(score, segment), fontWeight: 600 }}>{getScoreLevel(score, segment)}</div>
               </div>
             </div>
 
@@ -2903,8 +2903,8 @@
                   <div key={q.id} className="glass-card" style={{ padding: 24, animation: `slideInRight 0.5s ease-out ${i * 0.1}s both` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                       <div style={{ fontSize: 15, fontWeight: 600, flex: 1, paddingRight: 20 }}>{q.question}</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(qScore),
-                        textShadow: `0 0 20px ${getScoreColor(qScore)}30` }}>{qScore}</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(qScore, segment),
+                        textShadow: `0 0 20px ${getScoreColor(qScore, segment)}30` }}>{qScore}</div>
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--text-tertiary)' }}>
                       Your answer: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
@@ -2952,7 +2952,7 @@
                       </div>
                     )}
                     <div style={{ marginTop: 12, height: 4, background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${qScore}%`, background: getScoreColor(qScore), borderRadius: 2,
+                      <div style={{ height: '100%', width: `${qScore}%`, background: getScoreColor(qScore, segment), borderRadius: 2,
                         animation: 'barGrow 0.8s ease-out forwards', transformOrigin: 'left' }} />
                     </div>
                   </div>
@@ -3175,8 +3175,8 @@
         }, []);
 
         // Get the level change text
-        const currentLevel = getScoreLevel(projections.current.overall);
-        const projectedLevel = getScoreLevel(projections.projected.overall);
+        const currentLevel = getScoreLevel(projections.current.overall, segment);
+        const projectedLevel = getScoreLevel(projections.projected.overall, segment);
         const levelImproved = currentLevel !== projectedLevel;
 
         return (
@@ -3216,12 +3216,12 @@
                   <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto' }}>
                     <ProgressRing progress={projections.current.overall} size={120} strokeWidth={8} />
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: 36, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(projections.current.overall) }}>
+                      <span style={{ fontSize: 36, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(projections.current.overall, segment) }}>
                         {projections.current.overall}
                       </span>
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, color: getScoreColor(projections.current.overall), fontWeight: 600, marginTop: 6 }}>
+                  <div style={{ fontSize: 13, color: getScoreColor(projections.current.overall, segment), fontWeight: 600, marginTop: 6 }}>
                     {currentLevel}
                   </div>
                 </div>
@@ -3398,7 +3398,7 @@
                     color: 'var(--text-secondary)',
                     margin: 0
                   }}>
-                    Your assessment shows a path from <strong style={{ color: getScoreColor(projections.current.overall) }}>{projections.current.overall}</strong> to <strong style={{ color: '#10B981' }}>{projections.projected.overall}</strong>.
+                    Your assessment shows a path from <strong style={{ color: getScoreColor(projections.current.overall, segment) }}>{projections.current.overall}</strong> to <strong style={{ color: '#10B981' }}>{projections.projected.overall}</strong>.
                     {' '}Here's how one platform delivers that improvement:
                   </p>
                 </div>
@@ -3623,8 +3623,8 @@
           return acc;
         }, []);
 
-        const currentLevel = getScoreLevel(projections.current.overall);
-        const projectedLevel = getScoreLevel(projections.projected.overall);
+        const currentLevel = getScoreLevel(projections.current.overall, segment);
+        const projectedLevel = getScoreLevel(projections.projected.overall, segment);
         const levelImproved = currentLevel !== projectedLevel;
 
         return (
@@ -3649,10 +3649,10 @@
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Current</div>
-                  <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(projections.current.overall) }}>
+                  <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Archivo'", color: getScoreColor(projections.current.overall, segment) }}>
                     {projections.current.overall}
                   </div>
-                  <div style={{ fontSize: 11, color: getScoreColor(projections.current.overall), fontWeight: 500 }}>{currentLevel}</div>
+                  <div style={{ fontSize: 11, color: getScoreColor(projections.current.overall, segment), fontWeight: 500 }}>{currentLevel}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ color: '#10B981' }}>

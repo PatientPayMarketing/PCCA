@@ -2295,7 +2295,7 @@ function getGapAnalysis(scores) {
  */
 function generateResultsSummary(scores, gapAnalysis, recommendations) {
   const segment = scores.segment;
-  const level = getScoreLevel(scores.overall);
+  const level = getScoreLevel(scores.overall, segment);
 
   // Overall position statement
   let positionStatement = '';
@@ -3218,29 +3218,65 @@ function calculateScores(answers) {
 }
 
 /**
- * Get score level interpretation
+ * Get score level interpretation - V4.15: Benchmark-relative labels
+ * When segment is provided, labels are relative to the industry benchmark.
+ * This ensures a facility scoring above their industry average gets positive
+ * language, even if their absolute score is moderate.
+ *
  * @param {number} score - Score value (0-100)
+ * @param {string} [segment] - Optional segment (SL, MC, SNF, CCRC) for benchmark-relative labels
  * @returns {string} - Level name
  */
-function getScoreLevel(score) {
-  if (score >= 90) return 'Excellent';
-  if (score >= 80) return 'Strong';
-  if (score >= 60) return 'Progressing';
-  if (score >= 40) return 'Developing';
-  return 'Needs Attention';
+function getScoreLevel(score, segment) {
+  const benchmark = segment && IndustryBenchmarks[segment]
+    ? IndustryBenchmarks[segment].overall
+    : null;
+
+  if (benchmark !== null) {
+    const gap = score - benchmark;
+    if (gap >= 15) return 'Leading';
+    if (gap >= 5) return 'Ahead of Benchmark';
+    if (gap >= -4) return score >= 60 ? 'On Track' : 'Building Momentum';
+    if (gap >= -14) return 'Opportunity Ahead';
+    return 'Early Stage';
+  }
+
+  // Fallback: absolute thresholds (used when segment not available)
+  if (score >= 85) return 'Leading';
+  if (score >= 70) return 'Ahead of Benchmark';
+  if (score >= 55) return 'On Track';
+  if (score >= 40) return 'Building Momentum';
+  return 'Early Stage';
 }
 
 /**
- * Get score color
+ * Get score color - V4.15: Benchmark-relative colors
+ * Colors now reflect position vs industry benchmark when segment is provided.
+ *
  * @param {number} score - Score value (0-100)
+ * @param {string} [segment] - Optional segment for benchmark-relative coloring
  * @returns {string} - Hex color
  */
-function getScoreColor(score) {
-  if (score >= 90) return AssessmentColors.success;
-  if (score >= 80) return '#84CC16'; // Light green
-  if (score >= 60) return AssessmentColors.warning;
-  if (score >= 40) return '#F97316'; // Orange
-  return AssessmentColors.error;
+function getScoreColor(score, segment) {
+  const benchmark = segment && IndustryBenchmarks[segment]
+    ? IndustryBenchmarks[segment].overall
+    : null;
+
+  if (benchmark !== null) {
+    const gap = score - benchmark;
+    if (gap >= 15) return AssessmentColors.success;     // Leading - green
+    if (gap >= 5) return '#84CC16';                     // Ahead - light green
+    if (gap >= -4) return AssessmentColors.secondary;   // On Track / Building Momentum - blue (neutral-positive)
+    if (gap >= -14) return AssessmentColors.warning;    // Opportunity Ahead - amber
+    return '#F97316';                                   // Early Stage - orange
+  }
+
+  // Fallback: absolute thresholds
+  if (score >= 85) return AssessmentColors.success;
+  if (score >= 70) return '#84CC16';
+  if (score >= 55) return AssessmentColors.secondary;
+  if (score >= 40) return AssessmentColors.warning;
+  return '#F97316';
 }
 
 /**
@@ -3668,14 +3704,14 @@ function prepareExportData(formData, answers, scores) {
 
     scores: {
       overall: scores.overall,
-      overall_level: getScoreLevel(scores.overall),
+      overall_level: getScoreLevel(scores.overall, segment),
       operational_readiness: scores.categories[0],
-      operational_level: getScoreLevel(scores.categories[0]),
+      operational_level: getScoreLevel(scores.categories[0], segment),
       family_experience: scores.categories[1],
-      family_level: getScoreLevel(scores.categories[1]),
+      family_level: getScoreLevel(scores.categories[1], segment),
       // SNF uses 2-category model - no competitive position
       competitive_position: useTwoCategories ? null : scores.categories[2],
-      competitive_level: useTwoCategories ? null : getScoreLevel(scores.categories[2]),
+      competitive_level: useTwoCategories ? null : getScoreLevel(scores.categories[2], segment),
       weights: useTwoCategories ? [0.60, 0.40] : scores.weights,
       uses_two_categories: useTwoCategories,
     },
@@ -3824,7 +3860,7 @@ async function sendWebhook(formData, answers, scores, uiVersion = 'unknown') {
     // Scores
     scores: {
       overall: scores.overall,
-      overallLevel: getScoreLevel(scores.overall),
+      overallLevel: getScoreLevel(scores.overall, segment),
       operational: scores.categories[0],
       familyExperience: scores.categories[1],
       // Competitive is null for SNF (uses 2-category model)
@@ -3974,20 +4010,45 @@ async function generatePDFReport(formData, answers, scores) {
     return '$' + num.toLocaleString('en-US');
   };
 
+  // V4.15: Benchmark-relative PDF score colors
   const getScoreColorArr = (score) => {
-    if (score >= 80) return colors.success;
-    if (score >= 60) return colors.secondary;
+    const benchmark = IndustryBenchmarks[segment] ? IndustryBenchmarks[segment].overall : null;
+    if (benchmark !== null) {
+      const gap = score - benchmark;
+      if (gap >= 15) return colors.success;      // Leading - green
+      if (gap >= 5) return [132, 204, 22];        // Ahead - light green
+      if (gap >= -4) return colors.secondary;     // On Track / Building Momentum - blue
+      if (gap >= -14) return colors.warning;      // Opportunity Ahead - amber
+      return [249, 115, 22];                      // Early Stage - orange
+    }
+    // Fallback
+    if (score >= 85) return colors.success;
+    if (score >= 70) return [132, 204, 22];
+    if (score >= 55) return colors.secondary;
     if (score >= 40) return colors.warning;
-    return colors.error;
+    return [249, 115, 22];
   };
 
-  // V4.10: Aligned with online assessment terminology (getScoreLevel function)
+  // V4.15: Benchmark-relative labels with contextual descriptions
   const getScoreLevelText = (score) => {
-    if (score >= 90) return { level: 'Excellent', desc: 'Your payment operations are industry-leading' };
-    if (score >= 80) return { level: 'Strong', desc: 'Your payment operations are well-positioned' };
-    if (score >= 60) return { level: 'Progressing', desc: 'Good foundation with room for optimization' };
-    if (score >= 40) return { level: 'Developing', desc: 'Significant opportunities for improvement' };
-    return { level: 'Needs Attention', desc: 'Critical improvements needed for efficiency' };
+    const benchmark = IndustryBenchmarks[segment] ? IndustryBenchmarks[segment].overall : null;
+    const gap = benchmark !== null ? score - benchmark : null;
+
+    if (gap !== null) {
+      if (gap >= 15) return { level: 'Leading', desc: `Your payment operations lead the ${segmentLabel} industry (benchmark: ${benchmark})` };
+      if (gap >= 5) return { level: 'Ahead of Benchmark', desc: `You're outperforming the ${segmentLabel} industry benchmark of ${benchmark}` };
+      if (gap >= -4 && score >= 60) return { level: 'On Track', desc: `You're tracking with the ${segmentLabel} industry benchmark of ${benchmark}` };
+      if (gap >= -4) return { level: 'Building Momentum', desc: `You're near the ${segmentLabel} industry benchmark of ${benchmark} with strong foundations` };
+      if (gap >= -14) return { level: 'Opportunity Ahead', desc: `Clear opportunities to reach the ${segmentLabel} benchmark of ${benchmark}` };
+      return { level: 'Early Stage', desc: `Significant potential to improve toward the ${segmentLabel} benchmark of ${benchmark}` };
+    }
+
+    // Fallback: absolute thresholds
+    if (score >= 85) return { level: 'Leading', desc: 'Your payment operations are industry-leading' };
+    if (score >= 70) return { level: 'Ahead of Benchmark', desc: 'Your payment operations are well-positioned' };
+    if (score >= 55) return { level: 'On Track', desc: 'Good foundation with room for optimization' };
+    if (score >= 40) return { level: 'Building Momentum', desc: 'Growing foundation with clear next steps' };
+    return { level: 'Early Stage', desc: 'Significant potential for improvement with the right tools' };
   };
 
   // Helper to draw logo text (brand-styled)
