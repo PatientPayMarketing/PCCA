@@ -4370,51 +4370,60 @@ async function generatePDFReport(formData, answers, scores) {
   if (gapAnalysisData) {
     const benchmarkScore = gapAnalysisData.overall.benchmark;
     const overallGap = gapAnalysisData.overall.gap;
+    const gapColor = overallGap >= 5 ? colors.success : overallGap >= -4 ? colors.secondary : colors.warning;
+
+    // Proportional thirds layout within the box
+    const boxH = 85;
+    const thirdW = contentWidth / 3;
 
     setFillColor(colors.bgLight);
-    doc.roundedRect(margin, y, contentWidth, 80, radius.lg, radius.lg, 'F');
-    setFillColor(colors.secondary);
+    doc.roundedRect(margin, y, contentWidth, boxH, radius.lg, radius.lg, 'F');
+    setFillColor(gapColor);
     doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
 
-    // Your score (left)
+    // Left third: Your Score
+    const leftX = margin + spacing.lg;
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text('YOUR SCORE', margin + spacing.lg, y + 24);
+    doc.text('YOUR SCORE', leftX, y + 24);
 
     const scoreColorArr = getScoreColorArr(scores.overall);
     setColor(scoreColorArr);
     doc.setFontSize(36);
     doc.setFont('helvetica', 'bold');
-    doc.text(scores.overall.toString(), margin + spacing.lg, y + 58);
+    doc.text(scores.overall.toString(), leftX, y + 58);
 
-    // Gap indicator (center)
+    // Center third: Gap badge + label
+    const centerX = margin + thirdW;
     const gapText = overallGap >= 0 ? `+${overallGap}` : `${overallGap}`;
-    const gapColor = overallGap >= 5 ? colors.success : overallGap >= -4 ? colors.secondary : colors.warning;
+    const perfLabel = overallGap >= 5 ? 'Above Benchmark' : overallGap >= -4 ? 'At Benchmark' : 'Below Benchmark';
+
     setFillColor(gapColor);
-    doc.roundedRect(margin + 180, y + 30, 60, 28, radius.md, radius.md, 'F');
+    const badgeW = 65;
+    doc.roundedRect(centerX + (thirdW - badgeW) / 2, y + 25, badgeW, 26, radius.md, radius.md, 'F');
     setColor(colors.white);
     doc.setFontSize(fontSize.xl);
     doc.setFont('helvetica', 'bold');
-    doc.text(gapText, margin + 210, y + 49, { align: 'center' });
+    doc.text(gapText, centerX + thirdW / 2, y + 43, { align: 'center' });
 
-    // Benchmark (right)
+    setColor(gapColor);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'bold');
+    doc.text(perfLabel, centerX + thirdW / 2, y + 62, { align: 'center' });
+
+    // Right third: Benchmark
+    const rightX = margin + thirdW * 2 + spacing.md;
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${segmentLabel.toUpperCase()} BENCHMARK`, margin + 280, y + 24);
+    doc.text(`${segmentLabel.toUpperCase()} BENCHMARK`, rightX, y + 24);
     setColor(colors.textDark);
     doc.setFontSize(36);
-    doc.text(benchmarkScore.toString(), margin + 280, y + 58);
-
-    // Performance label
-    const perfLabel = overallGap >= 5 ? 'Above Benchmark' : overallGap >= -4 ? 'At Benchmark' : 'Below Benchmark';
-    setColor(gapColor);
-    doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'bold');
-    doc.text(perfLabel, margin + 410, y + 49);
+    doc.text(benchmarkScore.toString(), rightX, y + 58);
 
-    y += 100;
+    y += boxH + spacing.lg;
 
     // Per-category comparison bars
     setColor(colors.textDark);
@@ -4456,13 +4465,22 @@ async function generatePDFReport(formData, answers, scores) {
       doc.setLineWidth(1.5);
       doc.line(benchmarkX, y - 2, benchmarkX, y + 18);
 
-      // Score and gap text
-      setColor(colors.textMuted);
+      // Score text (right of bar)
+      setColor(colors.textDark);
       doc.setFontSize(fontSize.sm);
-      const gapStr = catGap >= 0 ? `+${catGap}` : `${catGap}`;
-      doc.text(`${catScore}/100 (${gapStr} vs ${catBenchmark})`, barX + barWidth + 10, y + 11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${catScore}`, barX + barWidth + 10, y + 11);
 
-      y += 28;
+      // Gap badge (compact)
+      const catGapStr = catGap >= 0 ? `+${catGap}` : `${catGap}`;
+      const catGapColor = catGap >= 5 ? colors.success : catGap >= -4 ? colors.secondary : colors.warning;
+      setFillColor(catGapColor);
+      doc.roundedRect(barX + barWidth + 30, y + 1, 32, 14, radius.sm, radius.sm, 'F');
+      setColor(colors.white);
+      doc.setFontSize(fontSize.xs);
+      doc.text(catGapStr, barX + barWidth + 46, y + 10, { align: 'center' });
+
+      y += 30;
     }
   }
 
@@ -4560,19 +4578,21 @@ async function generatePDFReport(formData, answers, scores) {
   y = 95;
 
   // Section A: Demographic Shift Statement
+  doc.setFontSize(fontSize.md);
+  doc.setFont('helvetica', 'normal');
+  const shiftText = '11,200 Americans turn 65 every day. Their adult children grew up with Venmo, Apple Pay, and online banking. They expect the same from your billing.';
+  const shiftLines = doc.splitTextToSize(shiftText, contentWidth - spacing.lg * 2);
+  const shiftBoxH = shiftLines.length * 15 + 40;
+
   setFillColor(colors.primary);
-  doc.roundedRect(margin, y, contentWidth, 65, radius.lg, radius.lg, 'F');
+  doc.roundedRect(margin, y, contentWidth, shiftBoxH, radius.lg, radius.lg, 'F');
   setFillColor(colors.accent);
   doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
 
   setColor(colors.white);
-  doc.setFontSize(fontSize.md);
-  doc.setFont('helvetica', 'normal');
-  const shiftText = '11,200 Americans turn 65 every day. Their adult children grew up with Venmo, Apple Pay, and online banking. They expect the same from your billing.';
-  const shiftLines = doc.splitTextToSize(shiftText, contentWidth - 50);
-  doc.text(shiftLines, margin + spacing.lg, y + 28);
+  doc.text(shiftLines, margin + spacing.lg, y + 26);
 
-  y += 85;
+  y += shiftBoxH + spacing.md;
 
   // Section B: Family Expectations Dashboard (3x2 grid)
   setColor(colors.textDark);
@@ -4590,13 +4610,14 @@ async function generatePDFReport(formData, answers, scores) {
     { value: '72%', label: 'less likely to miss with unified billing', color: colors.success },
   ];
 
-  const statBoxW = (contentWidth - 16) / 3;
-  const statBoxH = 70;
+  const statGap = 10;
+  const statBoxW = (contentWidth - statGap * 2) / 3;
+  const statBoxH = 78;
   statGrid.forEach((stat, idx) => {
     const col = idx % 3;
     const row = Math.floor(idx / 3);
-    const sx = margin + col * (statBoxW + 8);
-    const sy = y + row * (statBoxH + 8);
+    const sx = margin + col * (statBoxW + statGap);
+    const sy = y + row * (statBoxH + statGap);
 
     setFillColor(colors.bgLight);
     doc.roundedRect(sx, sy, statBoxW, statBoxH, radius.md, radius.md, 'F');
@@ -4604,18 +4625,18 @@ async function generatePDFReport(formData, answers, scores) {
     doc.roundedRect(sx, sy, statBoxW, 3, radius.md, radius.md, 'F');
 
     setColor(stat.color);
-    doc.setFontSize(28);
+    doc.setFontSize(26);
     doc.setFont('helvetica', 'bold');
-    doc.text(stat.value, sx + spacing.md, sy + 32);
+    doc.text(stat.value, sx + spacing.md, sy + 30);
 
     setColor(colors.textDark);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'normal');
-    const labelLines = doc.splitTextToSize(stat.label, statBoxW - 24);
-    doc.text(labelLines, sx + spacing.md, sy + 48);
+    const labelLines = doc.splitTextToSize(stat.label, statBoxW - spacing.md * 2);
+    doc.text(labelLines, sx + spacing.md, sy + 46);
   });
 
-  y += (statBoxH + 8) * 2 + spacing.lg;
+  y += (statBoxH + statGap) * 2 + spacing.md;
 
   // Section C: Your Gap (personalized)
   const gaps = [];
@@ -4672,38 +4693,42 @@ async function generatePDFReport(formData, answers, scores) {
     y += spacing.md;
 
     // Table header
+    const colHalfW = contentWidth / 2;
     setFillColor(colors.primary);
-    doc.roundedRect(margin, y, contentWidth, 22, radius.sm, radius.sm, 'F');
+    doc.roundedRect(margin, y, contentWidth, 24, radius.sm, radius.sm, 'F');
     setColor(colors.white);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text('What You Offer Today', margin + spacing.md, y + 15);
-    doc.text('What Families Expect', margin + contentWidth / 2 + spacing.md, y + 15);
-    y += 26;
+    doc.text('What You Offer Today', margin + spacing.md, y + 16);
+    doc.text('What Families Expect', margin + colHalfW + spacing.md, y + 16);
+    y += 28;
 
-    // Table rows (max 5)
+    // Table rows (max 5, dynamic height)
+    doc.setFontSize(fontSize.body);
     gaps.slice(0, 5).forEach((gap, idx) => {
+      doc.setFont('helvetica', 'normal');
+      const yoursLines = doc.splitTextToSize(gap.yours, colHalfW - spacing.md * 2);
+      const expectedLines = doc.splitTextToSize(gap.expected, colHalfW - spacing.md * 2);
+      const maxLines = Math.max(yoursLines.length, expectedLines.length);
+      const rowH = maxLines * 13 + 16;
+
       const rowBg = idx % 2 === 0 ? colors.bgLight : colors.white;
       setFillColor(rowBg);
-      doc.roundedRect(margin, y, contentWidth, 28, 0, 0, 'F');
+      doc.rect(margin, y, contentWidth, rowH, 'F');
 
-      // Left column - current state (with warning accent)
+      // Left column - current state
       setColor([200, 100, 50]);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'normal');
-      const yoursLines = doc.splitTextToSize(gap.yours, contentWidth / 2 - 30);
-      doc.text(yoursLines, margin + spacing.md, y + 14);
+      doc.text(yoursLines, margin + spacing.md, y + 13);
 
-      // Right column - expected state (with success accent)
+      // Right column - expected state
       setColor(colors.success);
-      const expectedLines = doc.splitTextToSize(gap.expected, contentWidth / 2 - 30);
-      doc.text(expectedLines, margin + contentWidth / 2 + spacing.md, y + 14);
+      doc.text(expectedLines, margin + colHalfW + spacing.md, y + 13);
 
       // Divider
-      setFillColor([220, 225, 230]);
-      doc.rect(margin + contentWidth / 2, y + 4, 1, 20, 'F');
+      setFillColor([210, 215, 220]);
+      doc.rect(margin + colHalfW - 0.5, y + 4, 1, rowH - 8, 'F');
 
-      y += 30;
+      y += rowH;
     });
   } else {
     // No gaps - congratulatory message
@@ -4814,68 +4839,80 @@ async function generatePDFReport(formData, answers, scores) {
   }
 
   compRows.slice(0, 5).forEach((row, idx) => {
-    const rowH = 50;
-    const rowBg = idx % 2 === 0 ? [252, 252, 253] : colors.white;
-    setFillColor(rowBg);
-    doc.roundedRect(margin, y, contentWidth, rowH, 0, 0, 'F');
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+    const todayLines = doc.splitTextToSize(row.today, halfWidth - spacing.md * 2);
+    const optLines = doc.splitTextToSize(row.optimized, halfWidth - spacing.md * 2);
+    const maxContentLines = Math.max(todayLines.length, optLines.length);
+    const rowH = maxContentLines * 13 + 30;
 
-    // Label
+    const rowBg = idx % 2 === 0 ? [248, 249, 251] : colors.white;
+    setFillColor(rowBg);
+    doc.rect(margin, y, contentWidth, rowH, 'F');
+
+    // Row label (spans full width)
     setColor(colors.textDark);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text(row.label, margin + spacing.sm, y + 14);
+    doc.text(row.label, margin + spacing.md, y + 14);
 
-    // Today column
+    // Today column text
     setColor([180, 80, 60]);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    const todayLines = doc.splitTextToSize(row.today, halfWidth - 20);
-    doc.text(todayLines, margin + spacing.sm, y + 30);
+    doc.text(todayLines, margin + spacing.md, y + 28);
 
-    // Optimized column
+    // Optimized column text
     setColor(colors.success);
-    const optLines = doc.splitTextToSize(row.optimized, halfWidth - 20);
-    doc.text(optLines, margin + halfWidth + 16 + spacing.sm, y + 30);
+    doc.text(optLines, margin + halfWidth + 16 + spacing.md, y + 28);
 
-    y += rowH + 2;
+    // Column divider
+    setFillColor([220, 225, 230]);
+    doc.rect(margin + halfWidth + 7, y + 4, 1, rowH - 8, 'F');
+
+    y += rowH;
   });
 
   y += spacing.lg;
 
   // Section B: Card Fee Savings (conditional, prominent)
   if (insights.absorbingCardFees && insights.annualCardFeesAbsorbed > 0) {
-    if (y + 100 < pageHeight - 80) {
+    if (y + 105 < pageHeight - 80) {
       setFillColor([255, 251, 235]); // Light amber
-      doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+      doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
       setFillColor(colors.accent);
       doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
 
+      // Headline with amount
       setColor(colors.textDark);
-      doc.setFontSize(fontSize.xl);
+      doc.setFontSize(fontSize.lg);
       doc.setFont('helvetica', 'bold');
-      doc.text(`You are absorbing ${formatCurrency(insights.annualCardFeesAbsorbed)} in card fees annually`, margin + spacing.lg, y + 28);
+      const feeHeadline = `You are absorbing ${formatCurrency(insights.annualCardFeesAbsorbed)} in card processing fees annually`;
+      const feeLines = doc.splitTextToSize(feeHeadline, contentWidth - spacing.lg * 2);
+      doc.text(feeLines, margin + spacing.lg, y + 24);
+      const feeHeadlineEnd = y + 24 + feeLines.length * 14;
 
       setColor(colors.textMuted);
       doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      doc.text('69% of families are willing to pay a convenience fee for the option to pay by card.', margin + spacing.lg, y + 48);
-      doc.text(`Annual savings with convenience fee pass-through: ${formatCurrency(insights.annualCardFeesAbsorbed)}`, margin + spacing.lg, y + 65);
+      doc.text('69% of families are willing to pay a convenience fee for the option to pay by card.', margin + spacing.lg, feeHeadlineEnd + 4);
+      doc.text(`Annual savings with convenience fee pass-through: ${formatCurrency(insights.annualCardFeesAbsorbed)}`, margin + spacing.lg, feeHeadlineEnd + 18);
 
       setColor(colors.success);
       doc.setFontSize(fontSize.sm);
       doc.setFont('helvetica', 'bold');
-      doc.text('Zero revenue impact. Families choose: cards (with fee) or ACH (free).', margin + spacing.lg, y + 80);
+      doc.text('Zero revenue impact. Families choose cards (with fee) or ACH (free).', margin + spacing.lg, feeHeadlineEnd + 34);
 
       y += 105;
     }
   }
 
   // Section C: Autopay Cash Flow (conditional)
-  if (insights.cashFreedByAutopay > 0 && y + 70 < pageHeight - 80) {
+  if (insights.cashFreedByAutopay > 0 && y + 65 < pageHeight - 80) {
     setFillColor([240, 249, 255]);
-    doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
+    doc.roundedRect(margin, y, contentWidth, 60, radius.md, radius.md, 'F');
     setFillColor(colors.secondary);
-    doc.roundedRect(margin, y, 5, 55, radius.sm, radius.sm, 'F');
+    doc.roundedRect(margin, y, 5, 60, radius.sm, radius.sm, 'F');
 
     setColor(colors.secondary);
     doc.setFontSize(fontSize.md);
@@ -4885,51 +4922,71 @@ async function generatePDFReport(formData, answers, scores) {
     setColor(colors.textDark);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Current enrollment: ${insights.autopayPct || 0}%  |  Target: 50%+  |  Cash flow acceleration: ${formatCurrency(insights.cashFreedByAutopay)}`, margin + spacing.lg, y + 40);
+    doc.text(`Current enrollment: ${insights.autopayPct || 0}%`, margin + spacing.lg, y + 36);
+    doc.text(`Target: 50%+`, margin + 170, y + 36);
+    doc.text(`Cash flow acceleration: ${formatCurrency(insights.cashFreedByAutopay)}`, margin + 260, y + 36);
 
-    y += 70;
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.text('Autopay reduces late payments and accelerates cash flow predictability.', margin + spacing.lg, y + 50);
+
+    y += 68;
   }
 
-  // Section D: Total Annual Savings Box
-  if (y + 90 < pageHeight - 60) {
-    const savingsInquiry = insights.potentialInquirySavings || 0;
-    const savingsCards = insights.annualCardFeesAbsorbed || 0;
-    const savingsAutopay = insights.cashFreedByAutopay || 0;
-    const totalSavings = savingsInquiry + savingsCards + savingsAutopay;
+  // Section D: Total Annual Savings Box (always renders if there are savings)
+  const savingsInquiry = insights.potentialInquirySavings || 0;
+  const savingsCards = insights.annualCardFeesAbsorbed || 0;
+  const savingsAutopay = insights.cashFreedByAutopay || 0;
+  const totalSavings = savingsInquiry + savingsCards + savingsAutopay;
 
-    if (totalSavings > 0) {
-      setFillColor(colors.primary);
-      doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+  if (totalSavings > 0) {
+    // Count line items to size the box
+    let savingsLineCount = 0;
+    if (savingsInquiry > 0) savingsLineCount++;
+    if (savingsCards > 0) savingsLineCount++;
+    if (savingsAutopay > 0) savingsLineCount++;
+    const savingsBoxH = 44 + savingsLineCount * 16 + 24;
 
-      setColor(colors.accent);
-      doc.setFontSize(fontSize.md);
-      doc.setFont('helvetica', 'bold');
-      doc.text('ANNUAL COST SAVINGS WITH PATIENTPAY', margin + spacing.lg, y + 22);
-
-      let lineY = y + 40;
-      setColor(colors.white);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'normal');
-
-      if (savingsInquiry > 0) {
-        doc.text(`Staff Time Recaptured: ${formatCurrency(savingsInquiry)}`, margin + spacing.lg, lineY);
-        lineY += 14;
-      }
-      if (savingsCards > 0) {
-        doc.text(`Card Fees Eliminated: ${formatCurrency(savingsCards)}`, margin + spacing.lg, lineY);
-        lineY += 14;
-      }
-      if (savingsAutopay > 0) {
-        doc.text(`Cash Flow from Autopay: ${formatCurrency(savingsAutopay)}`, margin + spacing.lg, lineY);
-        lineY += 14;
-      }
-
-      // Total
-      setColor(colors.accent);
-      doc.setFontSize(fontSize.xl);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total Annual Impact: ${formatCurrency(totalSavings)}`, margin + 280, y + 55);
+    // Ensure savings box always fits - anchor to bottom of page if tight on space
+    const savingsMinY = pageHeight - 60 - savingsBoxH;
+    if (y > savingsMinY) {
+      y = savingsMinY;
     }
+
+    setFillColor(colors.primary);
+    doc.roundedRect(margin, y, contentWidth, savingsBoxH, radius.lg, radius.lg, 'F');
+
+    setColor(colors.accent);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANNUAL COST SAVINGS WITH PATIENTPAY', margin + spacing.lg, y + 22);
+
+    // Line items (left column)
+    let lineY = y + 40;
+    setColor(colors.white);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+
+    if (savingsInquiry > 0) {
+      doc.text(`Staff Time Recaptured: ${formatCurrency(savingsInquiry)}`, margin + spacing.lg, lineY);
+      lineY += 16;
+    }
+    if (savingsCards > 0) {
+      doc.text(`Card Fees Eliminated: ${formatCurrency(savingsCards)}`, margin + spacing.lg, lineY);
+      lineY += 16;
+    }
+    if (savingsAutopay > 0) {
+      doc.text(`Cash Flow from Autopay: ${formatCurrency(savingsAutopay)}`, margin + spacing.lg, lineY);
+      lineY += 16;
+    }
+
+    // Total (right-aligned, vertically centered)
+    setColor(colors.accent);
+    doc.setFontSize(fontSize.xl);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total: ${formatCurrency(totalSavings)}`, margin + contentWidth - spacing.lg, y + savingsBoxH / 2 + 6, { align: 'right' });
+
+    y += savingsBoxH + spacing.sm;
   }
 
   addFooter(4);
@@ -4966,19 +5023,25 @@ async function generatePDFReport(formData, answers, scores) {
     doc.setFont('helvetica', 'normal');
     doc.text(getScoreLevelText(projectionsData.current.overall).level, margin + spacing.lg, y + 76);
 
-    // Arrow
-    setColor(colors.success);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('\u2192', margin + 180, y + 55);
+    // Arrow line with arrowhead
+    const arrowStartX = margin + 120;
+    const arrowEndX = margin + 200;
+    const arrowY = y + 50;
+    setDrawColor(colors.success);
+    doc.setLineWidth(2);
+    doc.line(arrowStartX, arrowY, arrowEndX, arrowY);
+    // Arrowhead
+    doc.line(arrowEndX - 8, arrowY - 5, arrowEndX, arrowY);
+    doc.line(arrowEndX - 8, arrowY + 5, arrowEndX, arrowY);
 
-    // Improvement badge
+    // Improvement badge (centered on arrow)
+    const badgeCenterX = (arrowStartX + arrowEndX) / 2;
     setFillColor(colors.success);
-    doc.roundedRect(margin + 210, y + 35, 60, 24, radius.md, radius.md, 'F');
+    doc.roundedRect(badgeCenterX - 28, y + 28, 56, 22, radius.md, radius.md, 'F');
     setColor(colors.white);
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
-    doc.text(`+${projectionsData.overallImprovement}`, margin + 240, y + 51, { align: 'center' });
+    doc.text(`+${projectionsData.overallImprovement}`, badgeCenterX, y + 43, { align: 'center' });
 
     // Projected score
     setColor(colors.textMuted);
@@ -5075,7 +5138,7 @@ async function generatePDFReport(formData, answers, scores) {
 
       const catImpColors = [colors.secondary, [139, 92, 246], colors.accent];
       projectionsData.categoryImprovements.forEach((ci, idx) => {
-        if (y + 28 > pageHeight - 80) return;
+        if (y + 34 > pageHeight - 80) return;
 
         setColor(colors.textDark);
         doc.setFontSize(fontSize.body);
@@ -5084,35 +5147,40 @@ async function generatePDFReport(formData, answers, scores) {
 
         const barX = margin + 175;
         const barW = 200;
+        const barH = 10;
 
-        // Current bar (faded)
+        // Current bar (30% blend toward white for faded effect)
         setFillColor([225, 230, 235]);
-        doc.roundedRect(barX, y, barW, 8, 2, 2, 'F');
+        doc.roundedRect(barX, y, barW, barH, 3, 3, 'F');
         const curW = (ci.currentScore / 100) * barW;
         if (curW > 0) {
-          const fadedColor = catImpColors[idx].map(c => Math.min(255, c + 80));
+          const baseColor = catImpColors[idx];
+          const fadedColor = baseColor.map(c => Math.round(c * 0.4 + 255 * 0.6));
           setFillColor(fadedColor);
-          doc.roundedRect(barX, y, curW, 8, 2, 2, 'F');
+          doc.roundedRect(barX, y, curW, barH, 3, 3, 'F');
         }
 
-        // Projected bar
+        // Projected bar (full color)
         setFillColor([225, 230, 235]);
-        doc.roundedRect(barX, y + 12, barW, 8, 2, 2, 'F');
+        doc.roundedRect(barX, y + barH + 4, barW, barH, 3, 3, 'F');
         const projW = (ci.projectedScore / 100) * barW;
         if (projW > 0) {
           setFillColor(catImpColors[idx]);
-          doc.roundedRect(barX, y + 12, projW, 8, 2, 2, 'F');
+          doc.roundedRect(barX, y + barH + 4, projW, barH, 3, 3, 'F');
         }
 
-        // Labels
+        // Current label
         setColor(colors.textMuted);
         doc.setFontSize(fontSize.xs);
-        doc.text(`${ci.currentScore}`, barX + barW + 8, y + 8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Now: ${ci.currentScore}`, barX + barW + 8, y + 9);
+
+        // Projected label
         setColor(catImpColors[idx]);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${ci.projectedScore} (+${ci.improvement})`, barX + barW + 8, y + 20);
+        doc.text(`Goal: ${ci.projectedScore} (+${ci.improvement})`, barX + barW + 8, y + barH + 13);
 
-        y += 32;
+        y += 34;
       });
     }
   }
@@ -5154,14 +5222,14 @@ async function generatePDFReport(formData, answers, scores) {
   ];
 
   const recCategoryMap = ['operations', 'family', 'competitive'];
-  const catColors = [colors.secondary, [139, 92, 246], colors.accent];
+  const p6CatColors = [colors.secondary, [139, 92, 246], colors.accent];
 
   for (let i = 0; i < 3; i++) {
-    // Check if we need a new page
-    if (y + 200 > pageHeight - 60 && i > 0) {
+    // Check if we need a new page for this category
+    if (y + 180 > pageHeight - 60) {
       addFooter(6);
       doc.addPage();
-      addHeader('Category Analysis (continued)');
+      addHeader(i === 0 ? 'Category Analysis' : 'Category Analysis (continued)');
       y = 95;
     }
 
@@ -5169,9 +5237,8 @@ async function generatePDFReport(formData, answers, scores) {
     const catScore = scores.categories[i];
     const catWeight = Math.round(scores.weights[i] * 100);
 
-    // Category header bar
-    setFillColor(catColors[i]);
-    doc.roundedRect(margin, y, 6, 170, radius.sm, radius.sm, 'F');
+    // Category header bar (dynamic height - drawn after content)
+    const catStartY = y;
 
     // Category name
     setColor(colors.textDark);
@@ -5267,6 +5334,11 @@ async function generatePDFReport(formData, answers, scores) {
         }
       });
     }
+
+    // Draw the colored sidebar with dynamic height based on content
+    const catContentHeight = catY - catStartY + spacing.sm;
+    setFillColor(p6CatColors[i]);
+    doc.roundedRect(margin, catStartY, 6, catContentHeight, radius.sm, radius.sm, 'F');
 
     y = catY + spacing.lg;
   }
