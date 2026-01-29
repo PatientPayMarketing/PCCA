@@ -3962,6 +3962,28 @@ async function generatePDFReport(formData, answers, scores) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'pt', 'letter');
 
+  // V4.15: Load actual PatientPay logo PNG for PDF embedding
+  let logoImg = null;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => resolve(); // Don't reject, just fall back to text
+      img.src = 'assets/patientpay_color.png';
+    });
+    if (img.naturalWidth > 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      logoImg = canvas.toDataURL('image/png');
+    }
+  } catch (e) {
+    // Silently fall back to text-based logo
+  }
+
   const segment = answers['facility_type'];
   const segmentLabel = segment && FacilityTypes[segment] ? FacilityTypes[segment].label : 'Senior Living';
   const visibleQuestions = getVisibleQuestions(answers);
@@ -4080,32 +4102,40 @@ async function generatePDFReport(formData, answers, scores) {
     return { level: 'Early Stage', desc: 'Significant potential for improvement with the right tools' };
   };
 
-  // Helper to draw logo text (brand-styled)
-  // V4.5: Added onDarkBg parameter - draws white rounded rectangle behind logo when on dark bg
-  // This preserves the original brand colors (Patient=navy, Pay=blue) while making logo visible
+  // V4.15: Draw logo using actual PNG image with text fallback
   const drawLogo = (x, y, size = 'normal', onDarkBg = false) => {
-    const logoFontSize = size === 'large' ? 28 : size === 'small' ? 12 : 18;
-    doc.setFontSize(logoFontSize);
-    doc.setFont('helvetica', 'bold');
+    if (logoImg) {
+      // Logo aspect ratio is approximately 4.8:1 (wide horizontal wordmark)
+      const heights = { large: 28, normal: 18, small: 12 };
+      const h = heights[size] || 18;
+      const w = h * 4.8;
 
-    // Calculate full logo width for background
-    const patientWidth = doc.getTextWidth('Patient');
-    const payWidth = doc.getTextWidth('Pay');
-    const totalWidth = patientWidth + payWidth;
+      if (onDarkBg) {
+        setFillColor(colors.white);
+        const pad = size === 'large' ? 10 : 6;
+        doc.roundedRect(x - pad, y - h - 2, w + pad * 2, h + pad * 2 - 2, radius.sm, radius.sm, 'F');
+      }
+      doc.addImage(logoImg, 'PNG', x, y - h, w, h);
+    } else {
+      // Fallback: text-based logo
+      const logoFontSize = size === 'large' ? 28 : size === 'small' ? 12 : 18;
+      doc.setFontSize(logoFontSize);
+      doc.setFont('helvetica', 'bold');
+      const patientWidth = doc.getTextWidth('Patient');
+      const payWidth = doc.getTextWidth('Pay');
+      const totalWidth = patientWidth + payWidth;
 
-    // On dark background, add white rounded rectangle behind logo
-    if (onDarkBg) {
-      setFillColor(colors.white);
-      const padding = size === 'large' ? 10 : 6;
-      const bgHeight = logoFontSize + padding;
-      doc.roundedRect(x - padding, y - logoFontSize + 2, totalWidth + (padding * 2), bgHeight, radius.sm, radius.sm, 'F');
+      if (onDarkBg) {
+        setFillColor(colors.white);
+        const padding = size === 'large' ? 10 : 6;
+        const bgHeight = logoFontSize + padding;
+        doc.roundedRect(x - padding, y - logoFontSize + 2, totalWidth + (padding * 2), bgHeight, radius.sm, radius.sm, 'F');
+      }
+      setColor(colors.primary);
+      doc.text('Patient', x, y);
+      setColor(colors.secondary);
+      doc.text('Pay', x + patientWidth, y);
     }
-
-    // Always use brand colors: Patient = navy, Pay = blue
-    setColor(colors.primary);
-    doc.text('Patient', x, y);
-    setColor(colors.secondary);
-    doc.text('Pay', x + patientWidth, y);
   };
 
   let totalPages = 7; // V4.9: Cover, Financial Impact, Strengths & Opportunities, Path to Improvement, Category Analysis, Benchmarks & Action Plan, Responses
@@ -4120,7 +4150,7 @@ async function generatePDFReport(formData, answers, scores) {
     doc.setFontSize(fontSize.xs);
     doc.setFont('helvetica', 'normal');
     doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 28, { align: 'center' });
-    doc.text('PatientPay Assessment v4.12', margin, pageHeight - 28);
+    doc.text('PatientPay Assessment v4.15', margin, pageHeight - 28);
     doc.text(new Date().toLocaleDateString(), pageWidth - margin, pageHeight - 28, { align: 'right' });
   };
 
@@ -4134,26 +4164,10 @@ async function generatePDFReport(formData, answers, scores) {
     doc.rect(0, 63, pageWidth, 2, 'F');
 
     if (showLogo) {
-      // V4.5: Draw logo with white background to preserve brand colors on dark header
+      // V4.15: Use actual logo image or fallback to text
       const logoX = pageWidth - margin - 75;
-      const logoY = 28;
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-
-      // Calculate logo width for background
-      const patientWidth = doc.getTextWidth('Patient');
-      const payWidth = doc.getTextWidth('Pay');
-      const totalWidth = patientWidth + payWidth;
-
-      // White rounded rectangle behind logo
-      setFillColor(colors.white);
-      doc.roundedRect(logoX - 8, logoY - 11, totalWidth + 16, 22, radius.sm, radius.sm, 'F');
-
-      // Draw logo in brand colors
-      setColor(colors.primary);
-      doc.text('Patient', logoX, logoY);
-      setColor(colors.secondary);
-      doc.text('Pay', logoX + patientWidth, logoY);
+      const logoY = 38;
+      drawLogo(logoX, logoY, 'normal', true);
     }
 
     setColor(colors.white);
@@ -4328,1372 +4342,2311 @@ async function generatePDFReport(formData, answers, scores) {
 
   addFooter(1);
 
+
   // ============================================
-  // PAGE 2: FINANCIAL INSIGHTS
+  // V4.15: PAGES 2-6 - SEGMENT-BRANCHED
+  // Non-SNF: Restructured with behavioral psychology arc
+  // SNF: Preserved existing flow
+  // ============================================
+
+  if (segment !== 'SNF') {
+
+  // ============================================
+  // PAGE 2: YOUR PAYMENT READINESS (Non-SNF)
+  // Benchmark comparison + strengths
   // ============================================
   doc.addPage();
-  addHeader('Financial Impact Analysis');
+  addHeader('Your Payment Readiness');
   y = 95;
 
-  // Segment context box - V4.9: Improved card design
-  if (segment && FacilityTypes[segment]) {
+  // Section A: Benchmark Comparison
+  setColor(colors.textDark);
+  doc.setFontSize(fontSize.xl);
+  doc.setFont('helvetica', 'bold');
+  doc.text('How You Compare', margin, y);
+  y += spacing.md;
+
+  // Overall score vs benchmark
+  if (gapAnalysisData) {
+    const benchmarkScore = gapAnalysisData.overall.benchmark;
+    const overallGap = gapAnalysisData.overall.gap;
+
     setFillColor(colors.bgLight);
-    doc.roundedRect(margin, y, contentWidth, 80, radius.md, radius.md, 'F');
-
-    // Accent bar
+    doc.roundedRect(margin, y, contentWidth, 80, radius.lg, radius.lg, 'F');
     setFillColor(colors.secondary);
-    doc.roundedRect(margin, y, 5, 80, radius.sm, radius.sm, 'F');
+    doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
 
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.lg);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Your Segment: ' + segmentLabel, margin + spacing.lg, y + 24);
-
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'normal');
-    const chars = FacilityTypes[segment].characteristics;
-
-    // V4.10: Adjusted column widths for SNF long text values
-    const col1X = margin + spacing.lg;
-    const col2X = margin + 220;
-    const col3X = margin + 380;
-
+    // Your score (left)
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
-    doc.text('Payer Mix:', col1X, y + 45);
-    doc.text('Typical AR Days:', col2X, y + 45);
-    doc.text('Complexity:', col3X, y + 45);
-
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'bold');
+    doc.text('YOUR SCORE', margin + spacing.lg, y + 24);
 
-    // V4.10: Handle long payer mix text with wrapping
-    const payerMixWidth = col2X - col1X - 15;
-    const payerMixLines = doc.splitTextToSize(chars.payerMix, payerMixWidth);
-    doc.text(payerMixLines, col1X, y + 62);
-
-    doc.text(chars.arDaysRange, col2X, y + 62);
-
-    // V4.10: Truncate complexity if too long
-    const maxComplexityWidth = contentWidth + margin - col3X - 10;
-    let complexityText = chars.complexity;
-    if (doc.getTextWidth(complexityText) > maxComplexityWidth) {
-      complexityText = complexityText.substring(0, 25) + '...';
-    }
-    doc.text(complexityText, col3X, y + 62);
-
-    y += 100;
-  }
-
-  // V4.11: SNF Financial Impact - using direct billing inputs
-  if (segment === 'SNF' && insights && insights.snfMonthlyBilling > 0) {
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.xl);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Your Patient Billing', margin, y);
-    y += spacing.md;
-
-    // Monthly billing highlight
-    setFillColor([240, 249, 255]);
-    doc.roundedRect(margin, y, contentWidth, 65, radius.md, radius.md, 'F');
-    setFillColor(colors.secondary);
-    doc.roundedRect(margin, y, 5, 65, radius.sm, radius.sm, 'F');
-
-    setColor(colors.secondary);
+    const scoreColorArr = getScoreColorArr(scores.overall);
+    setColor(scoreColorArr);
     doc.setFontSize(36);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfMonthlyBilling), margin + spacing.lg, y + 38);
+    doc.text(scores.overall.toString(), margin + spacing.lg, y + 58);
 
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'normal');
-    doc.text('/month in patient responsibility', margin + 160, y + 38);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.text(`(${formatCurrency(insights.snfAnnualBilling)} annually)`, margin + spacing.lg, y + 55);
-
-    y += 80;
-
-    // Current state - Cash in AR and Bad Debt
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.md);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CURRENT STATE', margin, y);
-    y += spacing.md;
-
-    const currentStateWidth = (contentWidth - 12) / 2;
-
-    // Cash stuck in AR
-    setFillColor([254, 242, 242]); // Light red
-    doc.roundedRect(margin, y, currentStateWidth, 75, radius.md, radius.md, 'F');
-    setFillColor(colors.error);
-    doc.roundedRect(margin, y, currentStateWidth, 4, radius.md, radius.md, 'F');
-
-    setColor(colors.error);
-    doc.setFontSize(28);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfCashInAR), margin + spacing.md, y + 35);
-
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Cash stuck in A/R', margin + spacing.md, y + 52);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.text(`${insights.snfCurrentARDays} days to collect`, margin + spacing.md, y + 66);
-
-    // Annual bad debt risk
-    const col2X = margin + currentStateWidth + 12;
-    setFillColor([255, 251, 235]); // Light amber
-    doc.roundedRect(col2X, y, currentStateWidth, 75, radius.md, radius.md, 'F');
-    setFillColor(colors.warning);
-    doc.roundedRect(col2X, y, currentStateWidth, 4, radius.md, radius.md, 'F');
-
-    setColor(colors.warning);
-    doc.setFontSize(28);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfCurrentBadDebt), col2X + spacing.md, y + 35);
-
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Annual bad debt risk', col2X + spacing.md, y + 52);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.text('~3% of patient billing', col2X + spacing.md, y + 66);
-
-    y += 90;
-
-    // PatientPay Impact
-    setFillColor([240, 253, 244]); // Light green
-    doc.roundedRect(margin, y, contentWidth, 120, radius.lg, radius.lg, 'F');
-    setFillColor(colors.success);
-    doc.roundedRect(margin, y, contentWidth, 5, radius.lg, radius.lg, 'F');
-
-    setColor(colors.success);
-    doc.setFontSize(fontSize.md);
-    doc.setFont('helvetica', 'bold');
-    doc.text('WITH PATIENTPAY', margin + spacing.lg, y + 24);
-
-    // Impact metrics in columns
-    const impactColWidth = (contentWidth - 48) / 3;
-    const impactY = y + 45;
-
-    // Cash freed
-    setColor(colors.success);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfCashFreedByARReduction), margin + spacing.lg, impactY);
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.sm);
-    doc.text('Cash freed', margin + spacing.lg, impactY + 16);
-
-    // AR days reduction
-    setColor(colors.success);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${insights.snfCurrentARDays} to ${insights.snfProjectedARDays}`, margin + spacing.lg + impactColWidth, impactY);
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.sm);
-    doc.text('AR days (47% faster)', margin + spacing.lg + impactColWidth, impactY + 16);
-
-    // Bad debt savings
-    setColor(colors.success);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfBadDebtSavings), margin + spacing.lg + impactColWidth * 2, impactY);
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.sm);
-    doc.text('Bad debt reduced', margin + spacing.lg + impactColWidth * 2, impactY + 16);
-
-    // Total annual impact
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.text('Total Annual Impact:', margin + spacing.lg, impactY + 45);
-    setColor(colors.success);
-    doc.setFontSize(32);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(insights.snfTotalAnnualImpact) + '+', margin + 140, impactY + 45);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.xs);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Based on PatientPay customer results: 47% AR reduction, 40% bad debt reduction', margin + spacing.lg, impactY + 62);
-
-    y += 135;
-  }
-
-  // Financial insights - V4.9: Improved card layout
-  if (insights) {
-    setColor(colors.textDark);
+    // Gap indicator (center)
+    const gapText = overallGap >= 0 ? `+${overallGap}` : `${overallGap}`;
+    const gapColor = overallGap >= 5 ? colors.success : overallGap >= -4 ? colors.secondary : colors.warning;
+    setFillColor(gapColor);
+    doc.roundedRect(margin + 180, y + 30, 60, 28, radius.md, radius.md, 'F');
+    setColor(colors.white);
     doc.setFontSize(fontSize.xl);
     doc.setFont('helvetica', 'bold');
-    doc.text('Your Financial Numbers', margin, y);
+    doc.text(gapText, margin + 210, y + 49, { align: 'center' });
 
+    // Benchmark (right)
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${segmentLabel.toUpperCase()} BENCHMARK`, margin + 280, y + 24);
+    setColor(colors.textDark);
+    doc.setFontSize(36);
+    doc.text(benchmarkScore.toString(), margin + 280, y + 58);
+
+    // Performance label
+    const perfLabel = overallGap >= 5 ? 'Above Benchmark' : overallGap >= -4 ? 'At Benchmark' : 'Below Benchmark';
+    setColor(gapColor);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'bold');
+    doc.text(perfLabel, margin + 410, y + 49);
+
+    y += 100;
+
+    // Per-category comparison bars
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CATEGORY BREAKDOWN', margin, y);
     y += spacing.lg;
 
-    // Big stat cards - V4.9: Better proportions and visual hierarchy
-    const financialStats = [
-      {
-        label: 'Annual Revenue',
-        value: formatCurrency(insights.annualRevenue),
-        sublabel: 'Based on beds x rate x occupancy',
-        color: colors.primary
-      },
-      {
-        label: 'Cash Tied in A/R',
-        value: formatCurrency(insights.cashInAR),
-        sublabel: `Currently at ${insights.arDays} days`,
-        color: colors.warning
-      },
-      {
-        label: 'Potential to Free',
-        value: formatCurrency(insights.potentialFreedCash),
-        sublabel: `If reduced to ${insights.targetArDays} days`,
-        color: colors.success
-      },
-    ];
+    const benchmarkKeys = ['operations', 'family', 'competitive'];
+    const catColors = [colors.secondary, [139, 92, 246], colors.accent];
 
-    const statBoxWidth = (contentWidth - 24) / 3;
-    const statGap = 12;
-    financialStats.forEach((stat, i) => {
-      const boxX = margin + (i * (statBoxWidth + statGap));
+    for (let i = 0; i < 3; i++) {
+      const catName = CategoryNames[i];
+      const catScore = scores.categories[i];
+      const catBenchmark = IndustryBenchmarks[segment] ? IndustryBenchmarks[segment][benchmarkKeys[i]] : 50;
+      const catGap = catScore - catBenchmark;
 
-      setFillColor(colors.bgLight);
-      doc.roundedRect(boxX, y, statBoxWidth, 100, radius.lg, radius.lg, 'F');
-
-      // Color accent at top of each card
-      setFillColor(stat.color);
-      doc.roundedRect(boxX, y, statBoxWidth, 4, radius.lg, radius.lg, 'F');
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.sm);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.label.toUpperCase(), boxX + spacing.md, y + 24);
-
-      setColor(stat.color);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.value, boxX + spacing.md, y + 56);
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      const subLines = doc.splitTextToSize(stat.sublabel, statBoxWidth - 28);
-      doc.text(subLines, boxX + spacing.md, y + 78);
-    });
-
-    y += 125;
-
-    // Multi-guarantor insight (if applicable) - V4.14: Enhanced with complexity multiplier & 3-column metrics
-    // V4.12.2: Only show if there's enough space on the page
-    const multiGuarantorHeight = 155;
-    const footerSpace = 60;
-    if (insights.avgPayersPerResident > 1 && (y + multiGuarantorHeight + footerSpace < pageHeight)) {
-      const personTerm = segment === 'SNF' ? 'patient' : 'resident';
-      const personTermPlural = segment === 'SNF' ? 'Patients' : 'Residents';
-      const complexityMultiplier = insights.avgPayersPerResident.toFixed(1);
-
-      // Main container
-      setFillColor([240, 249, 255]); // Light blue background
-      doc.roundedRect(margin, y, contentWidth, 140, radius.lg, radius.lg, 'F');
-
-      // Left accent bar
-      setFillColor([139, 92, 246]); // Purple accent (matches UI)
-      doc.roundedRect(margin, y, 5, 140, radius.sm, radius.sm, 'F');
-
-      // Title
-      setColor([139, 92, 246]);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Billing Complexity Multiplier', margin + spacing.lg, y + 24);
-
-      // Subtitle text
-      setColor(colors.textMuted);
+      setColor(colors.textDark);
       doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Each ${personTerm} generates ${insights.avgPayersPerResident} billing relationships`, margin + spacing.lg, y + 42);
+      doc.text(catName, margin, y + 10);
 
-      // 3-column metric boxes
-      const metricY = y + 54;
-      const metricBoxWidth = (contentWidth - spacing.lg * 2 - 16) / 3;
-      const metricBoxHeight = 50;
+      // Score bar background
+      const barX = margin + 180;
+      const barWidth = 230;
+      setFillColor([225, 230, 235]);
+      doc.roundedRect(barX, y, barWidth, 16, radius.sm, radius.sm, 'F');
 
-      // Column 1: Complexity multiplier
-      setFillColor([245, 240, 255]); // Light purple
-      doc.roundedRect(margin + spacing.lg, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
-      setColor([139, 92, 246]);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${complexityMultiplier}x`, margin + spacing.lg + metricBoxWidth / 2, metricY + 22, { align: 'center' });
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Complexity vs. single payer', margin + spacing.lg + metricBoxWidth / 2, metricY + 38, { align: 'center' });
-
-      // Column 2: Total family payers
-      const col2X = margin + spacing.lg + metricBoxWidth + 8;
-      setFillColor([235, 248, 255]); // Light blue
-      doc.roundedRect(col2X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
-      setColor(colors.secondary);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${insights.totalPayers}`, col2X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Total family payers', col2X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
-
-      // Column 3: Split billing residents/patients
-      const col3X = col2X + metricBoxWidth + 8;
-      setFillColor([236, 253, 245]); // Light green
-      doc.roundedRect(col3X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
-      setColor([16, 185, 129]); // Green
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${insights.multiGuarantorResidents}`, col3X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${personTermPlural} with split billing`, col3X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
-
-      // Impact callout bar (if inquiry cost exists)
-      if (insights.inquiryCost > 0) {
-        const calloutY = metricY + metricBoxHeight + 10;
-        setFillColor([255, 251, 235]); // Light amber
-        doc.roundedRect(margin + spacing.lg, calloutY, contentWidth - spacing.lg * 2, 24, radius.sm, radius.sm, 'F');
-        setFillColor([252, 201, 59]); // Amber left border
-        doc.roundedRect(margin + spacing.lg, calloutY, 3, 24, 1, 1, 'F');
-
-        setColor([180, 140, 20]);
-        doc.setFontSize(fontSize.sm);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`$${insights.inquiryCost.toLocaleString()}/year`, margin + spacing.lg + 10, calloutY + 15);
-        doc.setFont('helvetica', 'normal');
-        setColor(colors.textMuted);
-        const impactText = insights.avgPayersPerResident > 2
-          ? `estimated inquiry cost — ${insights.avgPayersPerResident} payers per ${personTerm} multiply coordination burden`
-          : 'estimated inquiry cost — individual statements could reduce this by 60-70%';
-        doc.text(impactText, margin + spacing.lg + 80, calloutY + 15);
+      // Score bar fill
+      const fillWidth = (catScore / 100) * barWidth;
+      if (fillWidth > 0) {
+        setFillColor(catColors[i]);
+        doc.roundedRect(barX, y, fillWidth, 16, radius.sm, radius.sm, 'F');
       }
 
-      y += multiGuarantorHeight;
+      // Benchmark marker
+      const benchmarkX = barX + (catBenchmark / 100) * barWidth;
+      setDrawColor(colors.textDark);
+      doc.setLineWidth(1.5);
+      doc.line(benchmarkX, y - 2, benchmarkX, y + 18);
+
+      // Score and gap text
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      const gapStr = catGap >= 0 ? `+${catGap}` : `${catGap}`;
+      doc.text(`${catScore}/100 (${gapStr} vs ${catBenchmark})`, barX + barWidth + 10, y + 11);
+
+      y += 28;
     }
-
-    // ROI Calculation Box - V4.9: Better visual design with columns
-    const roiBoxHeight = insights.annualCardFeesAbsorbed > 0 ? 125 : 108;
-    setFillColor(colors.primary);
-    doc.roundedRect(margin, y, contentWidth, roiBoxHeight, radius.lg, radius.lg, 'F');
-
-    setColor(colors.accent);
-    doc.setFontSize(fontSize.md);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ESTIMATED ROI WITH PATIENTPAY', margin + spacing.lg, y + 26);
-
-    // Calculate ROI estimates
-    // V4.14: Updated for staff-based inquiry cost calculation
-    const inquiryCostSavings = insights.potentialInquirySavings || 0;
-    const arReduction = insights.potentialFreedCash || 0;
-    const autopayIncrease = formData.bedCount ? Math.round(formData.bedCount * 0.25 * (formData.avgMonthlyRate || 5000) * 12 * 0.15) : 0; // 15% revenue acceleration from 25% more autopay
-
-    const roiItems = [
-      { label: 'Inquiry Cost Savings', value: inquiryCostSavings ? formatCurrency(inquiryCostSavings) + '/year' : 'Based on staff data' },
-      { label: 'Cash Freed from A/R', value: formatCurrency(arReduction) },
-      { label: 'Revenue Acceleration', value: autopayIncrease ? formatCurrency(autopayIncrease) : 'Based on autopay increase' }
-    ];
-
-    // V4.8: Add credit card fees absorbed if applicable
-    if (insights.annualCardFeesAbsorbed > 0) {
-      roiItems.push({
-        label: 'Card Fees Eliminated',
-        value: formatCurrency(insights.annualCardFeesAbsorbed) + '/year'
-      });
-    }
-
-    let roiY = y + 48;
-    roiItems.forEach((item) => {
-      setColor(colors.white);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'normal');
-      doc.text(item.label + ':', margin + spacing.lg, roiY);
-      setColor(colors.accent);
-      doc.setFont('helvetica', 'bold');
-      doc.text(item.value, margin + 210, roiY);
-      roiY += 20;
-    });
-
-    y += roiBoxHeight + spacing.lg;
   }
 
-  // V4.10: Check if Industry Context will fit on current page (need ~130px)
-  // If not, it will be shown at bottom or we skip it to avoid overflow
-  const industryContextHeight = 115; // Title + box + margins
-  const availableSpace = pageHeight - 60 - y; // 60 for footer
+  y += spacing.section;
 
-  if (availableSpace >= industryContextHeight) {
-    // Industry benchmark context - V4.9: Better visual design with dividers
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.lg);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Industry Context', margin, y);
-
-    y += spacing.lg;
-    setFillColor(colors.bgLight);
-    doc.roundedRect(margin, y, contentWidth, 85, radius.md, radius.md, 'F');
-
-  const benchmarks = [
-    { stat: '75%', label: 'of bill payers want card payment options' },
-    { stat: '67%', label: 'would choose a facility that accepts cards' },
-    { stat: '96%', label: 'reduction in processing time with automation' },
-    { stat: '37%', label: 'miss payments due to billing complexity' }
-  ];
-
-  const benchWidth = contentWidth / 4;
-  benchmarks.forEach((b, i) => {
-    const bx = margin + (i * benchWidth);
-
-    // Add divider between items
-    if (i > 0) {
-      setFillColor([220, 225, 230]);
-      doc.rect(bx, y + 15, 1, 55, 'F');
-    }
-
-    setColor(colors.secondary);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text(b.stat, bx + benchWidth/2, y + 35, { align: 'center' });
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.xs);
-    doc.setFont('helvetica', 'normal');
-    const labelLines = doc.splitTextToSize(b.label, benchWidth - 20);
-    doc.text(labelLines, bx + benchWidth/2, y + 55, { align: 'center' });
-  });
-  } // End of Industry Context conditional block
-
-  addFooter(2);
-
-  // ============================================
-  // PAGE 3: YOUR STRENGTHS (V4.8 - follows emotional arc)
-  // ============================================
-  doc.addPage();
-  addHeader('What You\'re Doing Well');
-  y = 95;
-
-  // Benchmark Comparison Summary at top - V4.9: Cleaner layout
-  if (gapAnalysisData) {
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.lg);
-    doc.setFont('helvetica', 'bold');
-    doc.text('How You Compare', margin, y);
-
-    y += spacing.md;
-
-    // Overall comparison box - V4.9: Better visual hierarchy
-    const overallGap = gapAnalysisData.overall.gap;
-    const overallBgColor = overallGap >= 0 ? [240, 253, 244] : [255, 251, 235];
-    const overallTextColor = overallGap >= 0 ? colors.success : colors.warning;
-
-    setFillColor(overallBgColor);
-    doc.roundedRect(margin, y, contentWidth, 60, radius.md, radius.md, 'F');
-
-    // Your score
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.xs);
-    doc.setFont('helvetica', 'bold');
-    doc.text('YOUR SCORE', margin + 28, y + 18);
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.display);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${scores.overall}`, margin + 28, y + 46);
-
-    // Gap indicator
-    setColor(overallTextColor);
-    doc.setFontSize(fontSize.h2);
-    doc.setFont('helvetica', 'bold');
-    doc.text(overallGap >= 0 ? `+${overallGap}` : `${overallGap}`, margin + 145, y + 38);
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.xs);
-    doc.setFont('helvetica', 'normal');
-    doc.text('vs benchmark', margin + 145, y + 18);
-
-    // Benchmark
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.xs);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${segmentLabel.toUpperCase()} AVERAGE`, margin + 245, y + 18);
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.display);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${gapAnalysisData.overall.benchmark}`, margin + 245, y + 46);
-
-    // Performance badge - V4.10: Wider badge for longer text, positioned at right edge
-    const badgeWidth = 130;
-    const badgeX = contentWidth + margin - badgeWidth; // Right-align with content area
-    setFillColor(overallTextColor);
-    doc.roundedRect(badgeX, y + 15, badgeWidth, 30, radius.sm, radius.sm, 'F');
-    setColor(colors.white);
-    doc.setFontSize(fontSize.md);
-    doc.setFont('helvetica', 'bold');
-    const perfLabel = overallGap >= 5 ? 'Above Benchmark' : overallGap >= 0 ? 'At Benchmark' : 'Below Benchmark';
-    doc.text(perfLabel, badgeX + badgeWidth / 2, y + 35, { align: 'center' });
-
-    y += 80;
-  }
-
-  // Your Strengths Section - V4.9: Better visual hierarchy
-  setColor(colors.success);
+  // Section B: Your Strengths
+  setColor(colors.textDark);
   doc.setFontSize(fontSize.xl);
   doc.setFont('helvetica', 'bold');
   doc.text('Your Strengths', margin, y);
+  y += spacing.md;
 
-  y += spacing.lg;
-
-  // V4.8: Check for strong categories first
   if (strengthsData.strongCategories && strengthsData.strongCategories.length > 0) {
-    const boxHeight = 20 + (strengthsData.strongCategories.length * 40);
-    setFillColor([240, 253, 244]);
-    doc.roundedRect(margin, y, contentWidth, boxHeight, radius.md, radius.md, 'F');
-    setFillColor(colors.success);
-    doc.roundedRect(margin, y, 5, boxHeight, radius.sm, radius.sm, 'F');
-
-    let strengthY = y + 28;
     strengthsData.strongCategories.forEach((cat) => {
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text(cat.name, margin + spacing.lg, strengthY);
+      setFillColor([240, 253, 244]);
+      doc.roundedRect(margin, y, contentWidth, 45, radius.md, radius.md, 'F');
+      setFillColor(colors.success);
+      doc.roundedRect(margin, y, 5, 45, radius.sm, radius.sm, 'F');
 
-      setColor(colors.success);
+      setColor(colors.textDark);
       doc.setFontSize(fontSize.md);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${cat.score}/100`, margin + 225, strengthY);
+      doc.text(cat.name, margin + spacing.lg, y + 20);
 
-      // Green badge for positive gap
+      setColor(colors.success);
+      doc.setFontSize(fontSize.body);
+      doc.text(`${cat.score}/100`, margin + 320, y + 20);
+
+      // Above benchmark badge
       setFillColor(colors.success);
-      doc.roundedRect(margin + 295, strengthY - 10, 90, 18, radius.sm, radius.sm, 'F');
+      doc.roundedRect(margin + 370, y + 10, 100, 20, radius.sm, radius.sm, 'F');
       setColor(colors.white);
       doc.setFontSize(fontSize.sm);
-      doc.text(`+${cat.gap} above`, margin + 340, strengthY, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`+${cat.gap} Above`, margin + 420, y + 24, { align: 'center' });
 
-      strengthY += 40;
+      y += 55;
     });
-    y += boxHeight + spacing.md;
-
   } else if (strengthsData.relativeStrength) {
-    // V4.8 Fallback: Show relative strength (closest to benchmark) - V4.9: Better styling
-    setFillColor([255, 251, 235]); // Amber tint for "building towards"
-    doc.roundedRect(margin, y, contentWidth, 70, radius.md, radius.md, 'F');
-    setFillColor(colors.warning);
-    doc.roundedRect(margin, y, 5, 70, radius.sm, radius.sm, 'F');
+    const rs = strengthsData.relativeStrength;
+    setFillColor([255, 251, 235]);
+    doc.roundedRect(margin, y, contentWidth, 45, radius.md, radius.md, 'F');
+    setFillColor(colors.accent);
+    doc.roundedRect(margin, y, 5, 45, radius.sm, radius.sm, 'F');
 
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Strongest Area: ${rs.name}`, margin + spacing.lg, y + 20);
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text('Your strongest area relative to benchmark:', margin + spacing.lg, y + 20);
+    doc.text(`Score: ${rs.score}/100`, margin + 320, y + 20);
+    y += 55;
 
-    doc.setFontSize(fontSize.xl);
-    doc.setFont('helvetica', 'bold');
-    setColor(colors.textDark);
-    doc.text(strengthsData.relativeStrength.name, margin + spacing.lg, y + 42);
-
-    setColor(colors.warning);
-    doc.setFontSize(fontSize.md);
-    doc.text(`${strengthsData.relativeStrength.score}/100`, margin + 255, y + 42);
-    doc.text(`${strengthsData.relativeStrength.gap} vs benchmark`, margin + 335, y + 42);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.setFont('helvetica', 'normal');
-    doc.text('This is your closest category to reaching benchmark performance.', margin + spacing.lg, y + 60);
-
-    y += 85;
-
-    // Show moderate questions if available (building blocks) - V4.9: Better card design
+    // Building blocks
     if (strengthsData.moderateQuestions && strengthsData.moderateQuestions.length > 0) {
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.md);
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
       doc.setFont('helvetica', 'bold');
-      doc.text('Building Blocks in Place:', margin, y);
+      doc.text('BUILDING BLOCKS IN PLACE', margin, y);
       y += spacing.md;
 
       strengthsData.moderateQuestions.slice(0, 3).forEach((q) => {
-        setFillColor(colors.bgLight);
-        doc.roundedRect(margin, y, contentWidth, 38, radius.sm, radius.sm, 'F');
-
-        // Score badge
-        setFillColor(colors.secondary);
-        doc.roundedRect(margin + spacing.sm, y + 8, 36, 22, radius.sm, radius.sm, 'F');
-        setColor(colors.white);
-        doc.setFontSize(fontSize.lg);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${q.score}`, margin + 30, y + 24, { align: 'center' });
-
-        setColor(colors.textDark);
-        doc.setFontSize(fontSize.sm);
         doc.setFont('helvetica', 'normal');
-        const qText = doc.splitTextToSize(q.question, 390);
-        doc.text(qText[0], margin + 58, y + 22);
-
-        y += 44;
+        doc.setFontSize(fontSize.body);
+        setColor(colors.textDark);
+        const qLines = doc.splitTextToSize(`${q.question}: ${q.answer || ''}`, contentWidth - 20);
+        doc.text(qLines, margin + 10, y);
+        y += qLines.length * 14 + 8;
       });
     }
-
-  } else if (strengthsData.strongQuestions && strengthsData.strongQuestions.length > 0) {
-    // Fallback: Show strong individual questions - V4.9: Better card design
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.body);
-    doc.text('Areas where you\'re performing well:', margin, y);
-    y += spacing.md;
-
-    strengthsData.strongQuestions.slice(0, 3).forEach((q) => {
-      setFillColor(colors.bgLight);
-      doc.roundedRect(margin, y, contentWidth, 42, radius.sm, radius.sm, 'F');
-
-      // Score badge
-      setFillColor(colors.success);
-      doc.roundedRect(margin + spacing.sm, y + 10, 36, 22, radius.sm, radius.sm, 'F');
-      setColor(colors.white);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${q.score}`, margin + 30, y + 26, { align: 'center' });
-
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.sm);
-      doc.setFont('helvetica', 'normal');
-      const qText = doc.splitTextToSize(q.question, 390);
-      doc.text(qText[0], margin + 58, y + 24);
-
-      y += 48;
-    });
-
   } else {
-    // V4.8: Early journey framing - V4.9: Better styling
-    setFillColor([240, 249, 255]);
-    doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
-    setFillColor(colors.secondary);
-    doc.roundedRect(margin, y, 5, 55, radius.sm, radius.sm, 'F');
-
+    setFillColor(colors.bgLight);
+    doc.roundedRect(margin, y, contentWidth, 50, radius.md, radius.md, 'F');
     setColor(colors.textDark);
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
     doc.text('Early in Your Modernization Journey', margin + spacing.lg, y + 22);
-
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text('The opportunities below represent significant potential for improvement.', margin + spacing.lg, y + 42);
-
-    y += 70;
+    doc.text('Every leading facility started exactly where you are today.', margin + spacing.lg, y + 38);
+    y += 60;
   }
 
+  addFooter(2);
+
+  // ============================================
+  // PAGE 3: WHAT FAMILIES EXPECT (Non-SNF)
+  // The strongest page - demographic shift + gap analysis
+  // ============================================
+  doc.addPage();
+  addHeader('What Today\'s Families Expect');
+  y = 95;
+
+  // Section A: Demographic Shift Statement
+  setFillColor(colors.primary);
+  doc.roundedRect(margin, y, contentWidth, 65, radius.lg, radius.lg, 'F');
+  setFillColor(colors.accent);
+  doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+
+  setColor(colors.white);
+  doc.setFontSize(fontSize.md);
+  doc.setFont('helvetica', 'normal');
+  const shiftText = '11,200 Americans turn 65 every day. Their adult children grew up with Venmo, Apple Pay, and online banking. They expect the same from your billing.';
+  const shiftLines = doc.splitTextToSize(shiftText, contentWidth - 50);
+  doc.text(shiftLines, margin + spacing.lg, y + 28);
+
+  y += 85;
+
+  // Section B: Family Expectations Dashboard (3x2 grid)
+  setColor(colors.textDark);
+  doc.setFontSize(fontSize.md);
+  doc.setFont('helvetica', 'bold');
+  doc.text('WHAT FAMILIES ARE CHOOSING', margin, y);
   y += spacing.md;
 
-  // Your Opportunities Section (Categories below benchmark) - V4.9: Better visual design
-  setColor(colors.warning);
-  doc.setFontSize(fontSize.xl);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Your Opportunities', margin, y);
+  const statGrid = [
+    { value: '67%', label: 'would choose a card-accepting facility', color: colors.accent },
+    { value: '78%', label: 'of seniors 65+ own smartphones', color: colors.secondary },
+    { value: '75%', label: 'want card payment options', color: colors.secondary },
+    { value: '82%', label: 'prefer digital payments', color: colors.success },
+    { value: '37%', label: 'miss bills due to payment complexity', color: colors.warning },
+    { value: '72%', label: 'less likely to miss with unified billing', color: colors.success },
+  ];
 
-  y += spacing.lg;
+  const statBoxW = (contentWidth - 16) / 3;
+  const statBoxH = 70;
+  statGrid.forEach((stat, idx) => {
+    const col = idx % 3;
+    const row = Math.floor(idx / 3);
+    const sx = margin + col * (statBoxW + 8);
+    const sy = y + row * (statBoxH + 8);
 
-  // Get categories below benchmark, ordered by index (Ops -> Family -> Competitive)
-  const opportunityCategories = gapAnalysisData ? gapAnalysisData.categories
-    .filter(c => c.gap < 0)
-    .sort((a, b) => a.index - b.index) : [];
+    setFillColor(colors.bgLight);
+    doc.roundedRect(sx, sy, statBoxW, statBoxH, radius.md, radius.md, 'F');
+    setFillColor(stat.color);
+    doc.roundedRect(sx, sy, statBoxW, 3, radius.md, radius.md, 'F');
 
-  if (opportunityCategories.length > 0) {
-    opportunityCategories.forEach((cat) => {
-      setFillColor([255, 251, 235]);
-      doc.roundedRect(margin, y, contentWidth, 45, radius.sm, radius.sm, 'F');
-      setFillColor(colors.warning);
-      doc.roundedRect(margin, y, 4, 45, radius.sm, radius.sm, 'F');
+    setColor(stat.color);
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(stat.value, sx + spacing.md, sy + 32);
 
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text(cat.name, margin + spacing.md, y + 18);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    const labelLines = doc.splitTextToSize(stat.label, statBoxW - 24);
+    doc.text(labelLines, sx + spacing.md, sy + 48);
+  });
 
-      setColor(colors.warning);
-      doc.setFontSize(fontSize.md);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${cat.score}/100`, margin + 255, y + 18);
+  y += (statBoxH + 8) * 2 + spacing.lg;
 
-      // Warning badge for negative gap
-      setFillColor(colors.warning);
-      doc.roundedRect(margin + 335, y + 8, 85, 22, radius.sm, radius.sm, 'F');
-      setColor(colors.white);
-      doc.setFontSize(fontSize.sm);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${cat.gap} vs benchmark`, margin + 377, y + 22, { align: 'center' });
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.sm);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Industry benchmark: ${cat.benchmark}`, margin + spacing.md, y + 36);
-
-      y += 52;
-    });
+  // Section C: Your Gap (personalized)
+  const gaps = [];
+  const delivery = answers['statement_delivery'];
+  const isPaperOnly = delivery === 'Paper mail only' || (Array.isArray(delivery) && delivery.length === 1 && delivery[0] === 'Paper mail');
+  if (isPaperOnly) {
+    gaps.push({ yours: 'Paper mail only', expected: 'Digital delivery: email, text, portal' });
   }
 
-  // Financial Opportunity (Cash in AR + Card Fees) - V4.9: Better card design
-  if (insights && (insights.potentialFreedCash > 0 || insights.annualCardFeesAbsorbed > 0)) {
-    y += spacing.sm;
+  const methods = answers['payment_methods'] || [];
+  const hasCards = methods.includes('Credit cards') || methods.includes('Debit cards');
+  if (!hasCards) {
+    gaps.push({ yours: 'Checks and ACH only', expected: 'Card payments and digital wallets' });
+  }
+
+  const portal = answers['family_portal'];
+  if (portal === 'No self-service portal available' || portal === 'no') {
+    gaps.push({ yours: 'No self-service billing access', expected: '24/7 online portal for balances and payments' });
+  }
+
+  const mgCap = answers['multi_guarantor_capability'];
+  if (mgCap === 'no' || mgCap === 'No, we can only bill one responsible party') {
+    gaps.push({ yours: 'One bill to one responsible party', expected: 'Individual statements per family member' });
+  } else if (mgCap === 'yes_manual' || mgCap === 'Yes, but it requires significant manual effort') {
+    gaps.push({ yours: 'Manual split billing (labor intensive)', expected: 'Automated multi-guarantor billing' });
+  }
+
+  const autopayRate = answers['autopay_rate'] || 0;
+  const hasAutopay = methods.includes('Automated recurring payments available') || methods.includes('Automated recurring payments (autopay)');
+  if (!hasAutopay) {
+    gaps.push({ yours: 'No autopay option', expected: 'Recurring automated payments' });
+  } else if (autopayRate < 30) {
+    gaps.push({ yours: `Only ${autopayRate}% on autopay`, expected: '50%+ autopay enrollment' });
+  }
+
+  const satisfaction = answers['family_satisfaction'];
+  if (satisfaction === 'poor' || satisfaction === 'We receive frequent complaints or confusion') {
+    gaps.push({ yours: 'Frequent billing complaints', expected: 'Positive billing experience' });
+  } else if (satisfaction === 'fair' || satisfaction === 'We hear occasional frustrations') {
+    gaps.push({ yours: 'Occasional billing frustrations', expected: 'Consistently positive experience' });
+  }
+
+  if (gaps.length > 0) {
     setColor(colors.textDark);
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
-    doc.text('Financial Opportunity', margin, y);
+    doc.text('YOUR GAP', margin, y);
+    y += spacing.sm;
+
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Where your facility stands today vs. what families expect', margin, y);
     y += spacing.md;
 
-    const showBoth = insights.potentialFreedCash > 0 && insights.annualCardFeesAbsorbed > 0;
-    const boxWidth = showBoth ? (contentWidth - 12) / 2 : contentWidth;
+    // Table header
+    setFillColor(colors.primary);
+    doc.roundedRect(margin, y, contentWidth, 22, radius.sm, radius.sm, 'F');
+    setColor(colors.white);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'bold');
+    doc.text('What You Offer Today', margin + spacing.md, y + 15);
+    doc.text('What Families Expect', margin + contentWidth / 2 + spacing.md, y + 15);
+    y += 26;
 
-    if (insights.potentialFreedCash > 0) {
-      setFillColor([240, 253, 244]);
-      doc.roundedRect(margin, y, boxWidth, 70, radius.md, radius.md, 'F');
+    // Table rows (max 5)
+    gaps.slice(0, 5).forEach((gap, idx) => {
+      const rowBg = idx % 2 === 0 ? colors.bgLight : colors.white;
+      setFillColor(rowBg);
+      doc.roundedRect(margin, y, contentWidth, 28, 0, 0, 'F');
 
-      // Top accent
-      setFillColor(colors.success);
-      doc.roundedRect(margin, y, boxWidth, 3, radius.md, radius.md, 'F');
+      // Left column - current state (with warning accent)
+      setColor([200, 100, 50]);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      const yoursLines = doc.splitTextToSize(gap.yours, contentWidth / 2 - 30);
+      doc.text(yoursLines, margin + spacing.md, y + 14);
 
+      // Right column - expected state (with success accent)
       setColor(colors.success);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text(formatCurrency(insights.potentialFreedCash + (insights.cashFreedByAutopay || 0)), margin + spacing.md, y + 32);
+      const expectedLines = doc.splitTextToSize(gap.expected, contentWidth / 2 - 30);
+      doc.text(expectedLines, margin + contentWidth / 2 + spacing.md, y + 14);
 
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Cash tied up in A/R', margin + spacing.md, y + 50);
+      // Divider
+      setFillColor([220, 225, 230]);
+      doc.rect(margin + contentWidth / 2, y + 4, 1, 20, 'F');
 
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Based on ${insights.arDays} days vs ${insights.targetArDays}-day target`, margin + spacing.md, y + 64);
-    }
+      y += 30;
+    });
+  } else {
+    // No gaps - congratulatory message
+    setFillColor([240, 253, 244]);
+    doc.roundedRect(margin, y, contentWidth, 50, radius.md, radius.md, 'F');
+    setFillColor(colors.success);
+    doc.roundedRect(margin, y, 5, 50, radius.sm, radius.sm, 'F');
 
-    if (insights.annualCardFeesAbsorbed > 0) {
-      const cardBoxX = showBoth ? margin + boxWidth + 12 : margin;
-      setFillColor([255, 251, 235]);
-      doc.roundedRect(cardBoxX, y, boxWidth, 70, radius.md, radius.md, 'F');
-
-      // Top accent
-      setFillColor(colors.warning);
-      doc.roundedRect(cardBoxX, y, boxWidth, 3, radius.md, radius.md, 'F');
-
-      setColor(colors.warning);
-      doc.setFontSize(24);
-      doc.setFont('helvetica', 'bold');
-      doc.text(formatCurrency(insights.annualCardFeesAbsorbed), cardBoxX + spacing.md, y + 32);
-
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Card fees absorbed/year', cardBoxX + spacing.md, y + 50);
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Eliminate with convenience fee pass-through', cardBoxX + spacing.md, y + 64);
-    }
+    setColor(colors.success);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('You\'re Ahead of Most Facilities', margin + spacing.lg, y + 22);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Your facility is already meeting key family expectations across the board.', margin + spacing.lg, y + 38);
   }
 
   addFooter(3);
 
   // ============================================
-  // PAGE 4: ACTIONABLE IMPROVEMENTS & PROJECTIONS (V4.8)
+  // PAGE 4: THE COST OF MANUAL OPERATIONS (Non-SNF)
+  // Current state vs optimized, card fees, autopay, savings
   // ============================================
   doc.addPage();
-  addHeader('Your Path to Improvement');
+  addHeader('The Cost of Manual Operations');
   y = 95;
 
-  // PatientPay Projections Section - V4.9: Improved visual design
+  // Section A: Current State vs Optimized State
   setColor(colors.textDark);
   doc.setFontSize(fontSize.xl);
   doc.setFont('helvetica', 'bold');
-  doc.text('With PatientPay', margin, y);
+  doc.text('Current State vs. Optimized State', margin, y);
+  y += spacing.md;
 
-  y += spacing.lg;
+  const halfWidth = (contentWidth - 16) / 2;
 
-  // Large projection comparison box - V4.9: Better proportions
-  setFillColor([240, 249, 255]);
-  doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
-  setFillColor(colors.secondary);
-  doc.roundedRect(margin, y, 5, 90, radius.sm, radius.sm, 'F');
-
-  // Current score
-  setColor(colors.textMuted);
-  doc.setFontSize(fontSize.xs);
+  // Column headers
+  setFillColor([254, 242, 242]); // Light red
+  doc.roundedRect(margin, y, halfWidth, 28, radius.md, radius.md, 'F');
+  setColor(colors.error);
+  doc.setFontSize(fontSize.md);
   doc.setFont('helvetica', 'bold');
-  doc.text('YOUR CURRENT SCORE', margin + 40, y + 20);
-  setColor(colors.textDark);
-  doc.setFontSize(38);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${projectionsData.current.overall}`, margin + 40, y + 60);
+  doc.text('TODAY', margin + halfWidth / 2, y + 18, { align: 'center' });
 
-  // Arrow - V4.10: Use visual arrow shape instead of unicode (font compatibility)
-  setColor(colors.secondary);
-  // Draw arrow using lines
-  const arrowX = margin + 175;
-  const arrowY = y + 45;
-  doc.setLineWidth(3);
-  setDrawColor(colors.secondary);
-  doc.line(arrowX, arrowY, arrowX + 35, arrowY); // Horizontal line
-  doc.line(arrowX + 25, arrowY - 10, arrowX + 35, arrowY); // Upper arrow head
-  doc.line(arrowX + 25, arrowY + 10, arrowX + 35, arrowY); // Lower arrow head
-
-  // Projected score
+  setFillColor([240, 253, 244]); // Light green
+  doc.roundedRect(margin + halfWidth + 16, y, halfWidth, 28, radius.md, radius.md, 'F');
   setColor(colors.success);
-  doc.setFontSize(fontSize.xs);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PROJECTED WITH PATIENTPAY', margin + 245, y + 20);
-  doc.setFontSize(38);
-  doc.text(`${projectionsData.projected.overall}`, margin + 245, y + 60);
+  doc.text('WITH PATIENTPAY', margin + halfWidth + 16 + halfWidth / 2, y + 18, { align: 'center' });
+  y += 36;
 
-  // Improvement badge with percentage - V4.9: Larger and more prominent
-  const improvementPct = Math.round((projectionsData.overallImprovement / projectionsData.current.overall) * 100);
-  setFillColor(colors.success);
-  doc.roundedRect(margin + 370, y + 18, 115, 52, radius.md, radius.md, 'F');
-  setColor(colors.white);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`+${projectionsData.overallImprovement}`, margin + 428, y + 48, { align: 'center' });
-  doc.setFontSize(fontSize.body);
-  doc.text(`points (${improvementPct}%)`, margin + 428, y + 64, { align: 'center' });
+  // Comparison rows
+  const compRows = [];
 
-  y += 115;
-
-  // Top 5 Improvements with enhanced formatting - V4.9: Better visual design
-  setColor(colors.textDark);
-  doc.setFontSize(fontSize.lg);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Top 5 High-Impact Improvements', margin, y);
-
-  // V4.12.2: Move subtitle to next line to prevent text overlap
-  y += 14;
-  setColor(colors.textMuted);
-  doc.setFontSize(fontSize.sm);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Implementing all five could increase your score by up to ' + projectionsData.overallImprovement + ' points.', margin, y);
-
-  y += spacing.lg;
-
-  if (projectionsData.topImprovements.length > 0) {
-    let cumulativeScore = projectionsData.current.overall;
-    const topImprovements = projectionsData.topImprovements.slice(0, 5);
-
-    topImprovements.forEach((imp, i) => {
-      const prevScore = cumulativeScore;
-      cumulativeScore = Math.min(100, cumulativeScore + imp.overallImpact);
-
-      setFillColor(colors.bgLight);
-      doc.roundedRect(margin, y, contentWidth, 46, radius.sm, radius.sm, 'F');
-
-      // Rank circle - V4.9: Slightly larger
-      setFillColor(colors.secondary);
-      doc.circle(margin + 20, y + 23, 12, 'F');
-      setColor(colors.white);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${i + 1}`, margin + 20, y + 28, { align: 'center' });
-
-      // Points badge - V4.9: Better proportions
-      setFillColor([240, 253, 244]);
-      doc.roundedRect(margin + 42, y + 10, 58, 22, radius.sm, radius.sm, 'F');
-      setColor(colors.success);
-      doc.setFontSize(fontSize.lg);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`+${imp.overallImpact} pts`, margin + 71, y + 25, { align: 'center' });
-
-      // Description - V4.12.2: Show full description with proper truncation
-      setColor(colors.textDark);
-      doc.setFontSize(fontSize.body);
-      doc.setFont('helvetica', 'bold');
-      // V4.12.2: Increased width and show two lines if needed
-      const maxDescWidth = 285;
-      const descText = doc.splitTextToSize(imp.description, maxDescWidth);
-      // Show first line, and if there's more, add ellipsis or show second line
-      if (descText.length > 1) {
-        doc.text(descText[0], margin + 112, y + 18);
-        doc.setFontSize(fontSize.sm);
-        doc.setFont('helvetica', 'normal');
-        doc.text(descText[1], margin + 112, y + 30);
-      } else {
-        doc.text(descText[0], margin + 112, y + 22);
-      }
-
-      // Running total - V4.10: Use text arrow for font compatibility
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.sm);
-      doc.setFont('helvetica', 'normal');
-      const scoreY = descText.length > 1 ? y + 42 : y + 38;
-      doc.text(`Score: ${prevScore} -> ${cumulativeScore}`, margin + 112, scoreY);
-
-      // Score progression box - V4.10: Show just the target score
-      setFillColor(colors.secondary);
-      doc.roundedRect(margin + 418, y + 12, 72, 24, radius.sm, radius.sm, 'F');
-      setColor(colors.white);
-      doc.setFontSize(fontSize.md);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${cumulativeScore}`, margin + 454, y + 28, { align: 'center' });
-
-      y += 52;
+  // Billing inquiries
+  const staffCount = answers['coordination_burden'] || 0;
+  if (staffCount > 0 && insights.inquiryCost > 0) {
+    compRows.push({
+      label: 'Billing Inquiries',
+      today: `${staffCount} staff on billing questions (${formatCurrency(insights.inquiryCost)}/yr)`,
+      optimized: `Self-service handles 65%+ (save ${formatCurrency(insights.potentialInquirySavings || 0)}/yr)`
     });
   }
 
-  // Additional improvements - V4.9: Better card design
-  if (projectionsData.additionalImprovements && projectionsData.additionalImprovements.length > 0) {
-    y += spacing.md;
+  // Statement processing
+  const stmtProc = answers['statement_processing'];
+  if (stmtProc) {
+    const procSimple = typeof stmtProc === 'string' ? stmtProc.substring(0, 50) : '';
+    compRows.push({
+      label: 'Statement Processing',
+      today: procSimple || 'Current process',
+      optimized: 'Automated from PointClickCare (15 sec)'
+    });
+  }
 
-    // Container box for additional improvements
-    setFillColor([250, 251, 252]);
-    const additionalHeight = Math.min(projectionsData.additionalImprovements.length, 4) * 18 + 35;
-    doc.roundedRect(margin, y, contentWidth, additionalHeight, radius.sm, radius.sm, 'F');
+  // Statement delivery
+  if (delivery) {
+    const deliveryText = Array.isArray(delivery) ? delivery.join(', ') : delivery;
+    compRows.push({
+      label: 'Statement Delivery',
+      today: deliveryText.substring(0, 50),
+      optimized: 'Multi-channel digital (email, text, portal)'
+    });
+  }
 
+  // Family portal
+  if (portal && (portal === 'No self-service portal available' || portal === 'no')) {
+    compRows.push({
+      label: 'Family Access',
+      today: 'No self-service billing access',
+      optimized: '24/7 online portal for balances and payments'
+    });
+  }
+
+  // Multi-guarantor
+  if (mgCap === 'no' || mgCap === 'No, we can only bill one responsible party') {
+    compRows.push({
+      label: 'Split Billing',
+      today: 'One bill to one responsible party',
+      optimized: 'Automated multi-guarantor billing'
+    });
+  } else if (mgCap === 'yes_manual' || mgCap === 'Yes, but it requires significant manual effort') {
+    compRows.push({
+      label: 'Split Billing',
+      today: 'Manual split billing process',
+      optimized: 'Fully automated split billing'
+    });
+  }
+
+  compRows.slice(0, 5).forEach((row, idx) => {
+    const rowH = 50;
+    const rowBg = idx % 2 === 0 ? [252, 252, 253] : colors.white;
+    setFillColor(rowBg);
+    doc.roundedRect(margin, y, contentWidth, rowH, 0, 0, 'F');
+
+    // Label
     setColor(colors.textDark);
-    doc.setFontSize(fontSize.md);
+    doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text(`PatientPay Also Helps With (${projectionsData.additionalImprovements.length} more):`, margin + spacing.md, y + 18);
-    y += 30;
+    doc.text(row.label, margin + spacing.sm, y + 14);
 
-    projectionsData.additionalImprovements.slice(0, 4).forEach((imp) => {
+    // Today column
+    setColor([180, 80, 60]);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'normal');
+    const todayLines = doc.splitTextToSize(row.today, halfWidth - 20);
+    doc.text(todayLines, margin + spacing.sm, y + 30);
+
+    // Optimized column
+    setColor(colors.success);
+    const optLines = doc.splitTextToSize(row.optimized, halfWidth - 20);
+    doc.text(optLines, margin + halfWidth + 16 + spacing.sm, y + 30);
+
+    y += rowH + 2;
+  });
+
+  y += spacing.lg;
+
+  // Section B: Card Fee Savings (conditional, prominent)
+  if (insights.absorbingCardFees && insights.annualCardFeesAbsorbed > 0) {
+    if (y + 100 < pageHeight - 80) {
+      setFillColor([255, 251, 235]); // Light amber
+      doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+      setFillColor(colors.accent);
+      doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`You are absorbing ${formatCurrency(insights.annualCardFeesAbsorbed)} in card fees annually`, margin + spacing.lg, y + 28);
+
       setColor(colors.textMuted);
-      doc.setFontSize(fontSize.sm);
+      doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      doc.text(`\u2022  ${imp.description}`, margin + spacing.md, y);
+      doc.text('69% of families are willing to pay a convenience fee for the option to pay by card.', margin + spacing.lg, y + 48);
+      doc.text(`Annual savings with convenience fee pass-through: ${formatCurrency(insights.annualCardFeesAbsorbed)}`, margin + spacing.lg, y + 65);
 
       setColor(colors.success);
       doc.setFontSize(fontSize.sm);
       doc.setFont('helvetica', 'bold');
-      doc.text(`+${imp.overallImpact} pts`, margin + 450, y);
+      doc.text('Zero revenue impact. Families choose: cards (with fee) or ACH (free).', margin + spacing.lg, y + 80);
 
-      y += 16;
-    });
-
-    if (projectionsData.additionalImprovements.length > 4) {
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'italic');
-      doc.text(`+ ${projectionsData.additionalImprovements.length - 4} more improvements...`, margin + spacing.md, y);
+      y += 105;
     }
   }
 
-  // V4.12: Triple Win Framework for non-SNF segments
-  // V4.12.2: Only show if there's enough space on page (need ~225px for both sections)
-  const tripleWinTotalHeight = 225;
-  const availableForTripleWin = pageHeight - 60 - y; // 60 for footer
+  // Section C: Autopay Cash Flow (conditional)
+  if (insights.cashFreedByAutopay > 0 && y + 70 < pageHeight - 80) {
+    setFillColor([240, 249, 255]);
+    doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
+    setFillColor(colors.secondary);
+    doc.roundedRect(margin, y, 5, 55, radius.sm, radius.sm, 'F');
 
-  if (segment !== 'SNF' && availableForTripleWin >= tripleWinTotalHeight) {
-    y += spacing.md;
-
-    // "What Today's Families Expect" Stats Box
-    setFillColor([255, 251, 235]); // Light amber
-    doc.roundedRect(margin, y, contentWidth, 100, radius.md, radius.md, 'F');
-
-    // Accent bar
-    setFillColor(colors.accent);
-    doc.roundedRect(margin, y, 5, 100, radius.sm, radius.sm, 'F');
-
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.lg);
-    doc.setFont('helvetica', 'bold');
-    doc.text('What Today\'s Families Expect', margin + spacing.lg, y + 22);
-
-    setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Today\'s families aren\'t asking IF you offer modern payment options—they\'re surprised when you don\'t.', margin + spacing.lg, y + 38);
-
-    // 4 key stats in a row
-    const statsY = y + 55;
-    const statWidth = (contentWidth - 40) / 4;
-    const familyStats = [
-      { value: '78%', label: 'seniors 65+ have smartphones' },
-      { value: '70%', label: 'adults 50+ use FinTech' },
-      { value: '62%', label: 'pay bills digitally' },
-      { value: '67%', label: 'prefer card-accepting facilities' }
-    ];
-
-    familyStats.forEach((stat, i) => {
-      const statX = margin + spacing.lg + (i * statWidth);
-
-      setColor(colors.secondary);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.value, statX, statsY);
-
-      setColor(colors.textMuted);
-      doc.setFontSize(fontSize.xs);
-      doc.setFont('helvetica', 'normal');
-      const labelLines = doc.splitTextToSize(stat.label, statWidth - 10);
-      doc.text(labelLines, statX, statsY + 14);
-    });
-
-    y += 115;
-
-    // Triple Win Summary Box
-    setFillColor(colors.primary);
-    doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
-
-    // Accent line at top
-    setFillColor(colors.accent);
-    doc.roundedRect(margin, y, contentWidth, 3, radius.lg, radius.lg, 'F');
-
-    setColor(colors.accent);
+    setColor(colors.secondary);
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
-    doc.text('THE ONE DECISION THAT DOES THREE THINGS', margin + spacing.lg, y + 22);
+    doc.text('Autopay Opportunity', margin + spacing.lg, y + 20);
 
-    setColor(colors.white);
-    doc.setFontSize(fontSize.sm);
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text('Smart operators don\'t make three separate investments—they make one.', margin + spacing.lg, y + 38);
+    doc.text(`Current enrollment: ${insights.autopayPct || 0}%  |  Target: 50%+  |  Cash flow acceleration: ${formatCurrency(insights.cashFreedByAutopay)}`, margin + spacing.lg, y + 40);
 
-    // Three pillars
-    const pillarY = y + 52;
-    const pillarWidth = (contentWidth - 50) / 3;
+    y += 70;
+  }
 
-    // V4.12.1: Renamed "Edge" to "Preference" for softer, less sales-y language
-    const pillars = [
-      { title: 'Efficiency', stat: '96% faster', color: colors.secondary },
-      { title: 'Experience', stat: '72% fewer misses', color: [139, 92, 246] }, // Purple
-      { title: 'Preference', stat: '67% choose modern', color: colors.accent }
-    ];
+  // Section D: Total Annual Savings Box
+  if (y + 90 < pageHeight - 60) {
+    const savingsInquiry = insights.potentialInquirySavings || 0;
+    const savingsCards = insights.annualCardFeesAbsorbed || 0;
+    const savingsAutopay = insights.cashFreedByAutopay || 0;
+    const totalSavings = savingsInquiry + savingsCards + savingsAutopay;
 
-    pillars.forEach((pillar, i) => {
-      const pillarX = margin + spacing.lg + (i * (pillarWidth + 10));
+    if (totalSavings > 0) {
+      setFillColor(colors.primary);
+      doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
 
-      // Pillar background (semi-transparent white effect using light color)
-      setFillColor([30, 50, 80]); // Slightly lighter than navy
-      doc.roundedRect(pillarX, pillarY, pillarWidth, 35, radius.sm, radius.sm, 'F');
-
-      setColor(pillar.color);
-      doc.setFontSize(fontSize.body);
+      setColor(colors.accent);
+      doc.setFontSize(fontSize.md);
       doc.setFont('helvetica', 'bold');
-      doc.text(pillar.title, pillarX + 8, pillarY + 14);
+      doc.text('ANNUAL COST SAVINGS WITH PATIENTPAY', margin + spacing.lg, y + 22);
 
+      let lineY = y + 40;
       setColor(colors.white);
-      doc.setFontSize(fontSize.sm);
+      doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      doc.text(pillar.stat, pillarX + 8, pillarY + 28);
-    });
 
-    y += 110;
+      if (savingsInquiry > 0) {
+        doc.text(`Staff Time Recaptured: ${formatCurrency(savingsInquiry)}`, margin + spacing.lg, lineY);
+        lineY += 14;
+      }
+      if (savingsCards > 0) {
+        doc.text(`Card Fees Eliminated: ${formatCurrency(savingsCards)}`, margin + spacing.lg, lineY);
+        lineY += 14;
+      }
+      if (savingsAutopay > 0) {
+        doc.text(`Cash Flow from Autopay: ${formatCurrency(savingsAutopay)}`, margin + spacing.lg, lineY);
+        lineY += 14;
+      }
+
+      // Total
+      setColor(colors.accent);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total Annual Impact: ${formatCurrency(totalSavings)}`, margin + 280, y + 55);
+    }
   }
 
   addFooter(4);
 
   // ============================================
-  // PAGE 5: CATEGORY DEEP DIVE (with question-level scoring)
+  // PAGE 5: YOUR PATH FORWARD (Non-SNF)
+  // Score projection + top improvements + category transformation
+  // ============================================
+  doc.addPage();
+  addHeader('Your Path Forward');
+  y = 95;
+
+  if (projectionsData) {
+    // Section A: Score Projection
+    setFillColor([240, 253, 244]);
+    doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+    setFillColor(colors.success);
+    doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+
+    // Current score
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CURRENT', margin + spacing.lg, y + 24);
+
+    const curColor = getScoreColorArr(projectionsData.current.overall);
+    setColor(curColor);
+    doc.setFontSize(36);
+    doc.setFont('helvetica', 'bold');
+    doc.text(projectionsData.current.overall.toString(), margin + spacing.lg, y + 60);
+
+    setColor(curColor);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    doc.text(getScoreLevelText(projectionsData.current.overall).level, margin + spacing.lg, y + 76);
+
+    // Arrow
+    setColor(colors.success);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('\u2192', margin + 180, y + 55);
+
+    // Improvement badge
+    setFillColor(colors.success);
+    doc.roundedRect(margin + 210, y + 35, 60, 24, radius.md, radius.md, 'F');
+    setColor(colors.white);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`+${projectionsData.overallImprovement}`, margin + 240, y + 51, { align: 'center' });
+
+    // Projected score
+    setColor(colors.textMuted);
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROJECTED', margin + 310, y + 24);
+
+    setColor(colors.success);
+    doc.setFontSize(36);
+    doc.setFont('helvetica', 'bold');
+    doc.text(projectionsData.projected.overall.toString(), margin + 310, y + 60);
+
+    doc.setFontSize(fontSize.sm);
+    doc.setFont('helvetica', 'normal');
+    doc.text(getScoreLevelText(projectionsData.projected.overall).level, margin + 310, y + 76);
+
+    y += 110;
+
+    // Section B: Top 5 Improvements
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.md);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOP IMPROVEMENTS', margin, y);
+    y += spacing.md;
+
+    const topImps = projectionsData.topImprovements || [];
+    let cumulativeScore = projectionsData.current.overall;
+
+    topImps.slice(0, 5).forEach((imp, idx) => {
+      if (y + 40 > pageHeight - 80) return;
+
+      cumulativeScore = Math.min(100, cumulativeScore + imp.overallImpact);
+
+      // Rank circle
+      setFillColor(colors.secondary);
+      doc.circle(margin + 12, y + 12, 10, 'F');
+      setColor(colors.white);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${idx + 1}`, margin + 12, y + 16, { align: 'center' });
+
+      // Points badge
+      setFillColor([240, 249, 255]);
+      doc.roundedRect(margin + 28, y + 2, 45, 18, radius.sm, radius.sm, 'F');
+      setColor(colors.secondary);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`+${imp.overallImpact} pts`, margin + 50, y + 14, { align: 'center' });
+
+      // Description
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      const descLines = doc.splitTextToSize(imp.description, contentWidth - 160);
+      doc.text(descLines, margin + 80, y + 14);
+
+      // Cumulative score
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.text(`Score: ${cumulativeScore}`, margin + contentWidth - 50, y + 14);
+
+      y += 30 + (descLines.length > 1 ? 12 : 0);
+    });
+
+    // Additional improvements (if any)
+    const additional = projectionsData.additionalImprovements || [];
+    if (additional.length > 0 && y + 60 < pageHeight - 80) {
+      y += spacing.sm;
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ADDITIONAL IMPROVEMENTS', margin, y);
+      y += spacing.sm;
+
+      doc.setFont('helvetica', 'normal');
+      additional.slice(0, 4).forEach((imp) => {
+        if (y + 16 > pageHeight - 80) return;
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        const addLines = doc.splitTextToSize(`- ${imp.description}`, contentWidth - 20);
+        doc.text(addLines, margin + 10, y);
+        y += addLines.length * 12 + 4;
+      });
+    }
+
+    // Section C: Category Transformation
+    if (projectionsData.categoryImprovements && y + 100 < pageHeight - 80) {
+      y += spacing.lg;
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CATEGORY TRANSFORMATION', margin, y);
+      y += spacing.md;
+
+      const catImpColors = [colors.secondary, [139, 92, 246], colors.accent];
+      projectionsData.categoryImprovements.forEach((ci, idx) => {
+        if (y + 28 > pageHeight - 80) return;
+
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'normal');
+        doc.text(ci.categoryName, margin, y + 10);
+
+        const barX = margin + 175;
+        const barW = 200;
+
+        // Current bar (faded)
+        setFillColor([225, 230, 235]);
+        doc.roundedRect(barX, y, barW, 8, 2, 2, 'F');
+        const curW = (ci.currentScore / 100) * barW;
+        if (curW > 0) {
+          const fadedColor = catImpColors[idx].map(c => Math.min(255, c + 80));
+          setFillColor(fadedColor);
+          doc.roundedRect(barX, y, curW, 8, 2, 2, 'F');
+        }
+
+        // Projected bar
+        setFillColor([225, 230, 235]);
+        doc.roundedRect(barX, y + 12, barW, 8, 2, 2, 'F');
+        const projW = (ci.projectedScore / 100) * barW;
+        if (projW > 0) {
+          setFillColor(catImpColors[idx]);
+          doc.roundedRect(barX, y + 12, projW, 8, 2, 2, 'F');
+        }
+
+        // Labels
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.text(`${ci.currentScore}`, barX + barW + 8, y + 8);
+        setColor(catImpColors[idx]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${ci.projectedScore} (+${ci.improvement})`, barX + barW + 8, y + 20);
+
+        y += 32;
+      });
+    }
+  }
+
+  addFooter(5);
+
+  // ============================================
+  // PAGE 6: CATEGORY ANALYSIS (Non-SNF)
+  // Per-category deep dive with personalized recommendations
   // ============================================
   doc.addPage();
   addHeader('Category Analysis');
   y = 95;
 
-  // Detailed category breakdowns - V4.10: Use segment-aware category names
-  const categoryDetails = [
-    {
-      name: getCategoryName(0, segment),
-      score: scores.categories[0],
-      weight: weights[0],
-      focus: 'System integration, automation, and staff efficiency',
-      keyMetrics: [
-        { label: 'PCC Integration', answer: answers['pcc_integration'] || 'Not specified' },
-        { label: 'Statement Processing', answer: answers['statement_processing'] || 'Not specified' },
-        { label: 'Staff on Inquiries', answer: answers['coordination_burden'] ? `${answers['coordination_burden']} staff` : 'Not specified' }
-      ],
-      improvements: scores.categories[0] < 80 ? [
-        'Automate statement generation and delivery',
-        'Integrate billing directly with PointClickCare',
-        'Implement electronic payment acceptance'
-      ] : ['Maintain current operational excellence', 'Explore advanced automation opportunities']
-    },
-    {
-      // V4.10: Use segment-aware category names via getCategoryName
-      name: getCategoryName(1, segment),
-      score: scores.categories[1],
-      weight: weights[1],
-      focus: 'Payment flexibility, transparency, and multi-guarantor support',
-      keyMetrics: segment === 'SNF' ? [
-        // V4.13: SNF-specific metrics with split payment questions
-        { label: 'Split Billing', answer: answers['snf_multi_guarantor'] || 'Not specified' },
-        { label: 'Collection Rate', answer: answers['snf_collection_rate'] ? `${answers['snf_collection_rate']}%` : 'Not specified' },
-        { label: 'Payment Channels', answer: Array.isArray(answers['snf_payment_channels']) ? answers['snf_payment_channels'].join(', ') : 'Not specified' },
-        { label: 'Payment Types', answer: Array.isArray(answers['snf_payment_types']) ? answers['snf_payment_types'].join(', ') : 'Not specified' }
-      ] : [
-        // V4.4: Non-SNF metrics
-        { label: 'Multi-Guarantor Capability', answer: answers['multi_guarantor_capability'] || 'Not specified' },
-        { label: 'Payment Methods', answer: Array.isArray(answers['payment_methods']) ? answers['payment_methods'].join(', ') : 'Not specified' },
-        { label: 'Family Satisfaction', answer: answers['family_satisfaction'] || answers['family_portal'] || 'Not specified' }
-      ],
-      improvements: scores.categories[1] < 80 ? [
-        'Enable automated multi-guarantor split billing',
-        'Add online payment portal for families',
-        'Offer autopay enrollment options'
-      ] : ['Continue excellent family engagement', 'Consider advanced portal features']
-    }
+  const catDescriptions = [
+    'Statement processing, PointClickCare integration, staff efficiency, and automation.',
+    'Payment flexibility, transparency, multi-guarantor support, and family satisfaction.',
+    'Payment options that attract and retain residents, tour billing, and market position.'
   ];
 
-  // Add competitive if applicable - V4.10: Use segment-aware category names
-  if (!scores.useTwoCategories) {
-    categoryDetails.push({
-      name: getCategoryName(2, segment),
-      score: scores.categories[2],
-      weight: weights[2],
-      focus: 'Market differentiation through billing experience',
-      keyMetrics: [
-        { label: 'Payment Demand', answer: answers['payment_demand'] || 'Not asked (cards accepted)' },
-        { label: 'Tour Billing Discussion', answer: answers['tour_billing'] || 'Not specified' },
-        // V4.4: Removed competitive_awareness (replaced by family_satisfaction in Family category)
-        { label: 'Family Satisfaction', answer: answers['family_satisfaction'] || 'Not asked' }
-      ],
-      improvements: scores.categories[2] < 80 ? [
-        'Highlight payment flexibility in marketing',
-        'Train sales team on billing advantages',
-        'Showcase modern billing during tours'
-      ] : ['Leverage billing as competitive advantage', 'Share family testimonials']
-    });
-  }
+  const catKeyAnswers = [
+    // Operations
+    [
+      answers['statement_processing'] ? { label: 'Statement Processing', value: answers['statement_processing'] } : null,
+      answers['coordination_burden'] ? { label: 'Staff on Billing', value: `${answers['coordination_burden']} staff members` } : null,
+      answers['autopay_rate'] ? { label: 'Autopay Rate', value: `${answers['autopay_rate']}%` } : null,
+    ].filter(Boolean),
+    // Family Experience
+    [
+      answers['multi_guarantor_capability'] ? { label: 'Multi-Guarantor', value: answers['multi_guarantor_capability'] } : null,
+      answers['payment_methods'] ? { label: 'Payment Methods', value: Array.isArray(answers['payment_methods']) ? answers['payment_methods'].join(', ') : answers['payment_methods'] } : null,
+      answers['family_satisfaction'] ? { label: 'Family Satisfaction', value: answers['family_satisfaction'] } : null,
+    ].filter(Boolean),
+    // Competitive
+    [
+      answers['tour_billing'] ? { label: 'Tour Billing', value: answers['tour_billing'] } : null,
+      answers['payment_demand'] ? { label: 'Card Demand', value: answers['payment_demand'] } : null,
+    ].filter(Boolean),
+  ];
 
-  categoryDetails.forEach((cat, idx) => {
-    // Check for page break
-    if (y > pageHeight - 250) {
-      addFooter(5);
+  const recCategoryMap = ['operations', 'family', 'competitive'];
+  const catColors = [colors.secondary, [139, 92, 246], colors.accent];
+
+  for (let i = 0; i < 3; i++) {
+    // Check if we need a new page
+    if (y + 200 > pageHeight - 60 && i > 0) {
+      addFooter(6);
       doc.addPage();
       addHeader('Category Analysis (continued)');
       y = 95;
     }
 
-    // Category card - V4.9: Improved proportions and visual hierarchy
-    setFillColor(colors.bgLight);
-    doc.roundedRect(margin, y, contentWidth, 185, radius.lg, radius.lg, 'F');
+    const catName = CategoryNames[i];
+    const catScore = scores.categories[i];
+    const catWeight = Math.round(scores.weights[i] * 100);
 
-    // Score indicator bar
-    const catScoreColor = getScoreColorArr(cat.score);
-    setFillColor(catScoreColor);
-    doc.roundedRect(margin, y, 6, 185, radius.sm, radius.sm, 'F');
+    // Category header bar
+    setFillColor(catColors[i]);
+    doc.roundedRect(margin, y, 6, 170, radius.sm, radius.sm, 'F');
 
-    // Category header
+    // Category name
     setColor(colors.textDark);
-    doc.setFontSize(fontSize.xl);
+    doc.setFontSize(fontSize.h2);
     doc.setFont('helvetica', 'bold');
-    doc.text(cat.name, margin + spacing.lg, y + 28);
+    doc.text(catName, margin + spacing.lg, y + 22);
 
-    // Score badge - V4.9: Larger and more prominent
-    setFillColor(catScoreColor);
-    doc.roundedRect(margin + 345, y + 12, 70, 28, radius.sm, radius.sm, 'F');
+    // Score badge
+    setFillColor(getScoreColorArr(catScore));
+    doc.roundedRect(margin + 340, y + 6, 55, 24, radius.md, radius.md, 'F');
     setColor(colors.white);
-    doc.setFontSize(fontSize.xl);
+    doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${cat.score}/100`, margin + 380, y + 31, { align: 'center' });
+    doc.text(`${catScore}/100`, margin + 367, y + 22, { align: 'center' });
 
-    // Weight badge
-    setFillColor([230, 235, 240]);
-    doc.roundedRect(margin + 422, y + 14, 65, 22, radius.sm, radius.sm, 'F');
+    // Weight
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${Math.round(cat.weight * 100)}% weight`, margin + 454, y + 29, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${catWeight}% weight`, margin + 410, y + 22);
 
-    // Focus area
+    // Focus description
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
-    doc.text(cat.focus, margin + spacing.lg, y + 50);
+    const focusLines = doc.splitTextToSize('Focus: ' + catDescriptions[i], contentWidth - 30);
+    doc.text(focusLines, margin + spacing.lg, y + 42);
 
-    // Your responses section - V4.9: Better label/value formatting
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Your Responses:', margin + spacing.lg, y + 75);
+    let catY = y + 42 + focusLines.length * 14 + spacing.sm;
 
-    doc.setFont('helvetica', 'normal');
-    let metricY = y + 92;
-    cat.keyMetrics.forEach(metric => {
+    // Key responses
+    if (catKeyAnswers[i].length > 0) {
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'bold');
+      doc.text('KEY RESPONSES', margin + spacing.lg, catY);
+      catY += spacing.sm;
+
+      catKeyAnswers[i].slice(0, 3).forEach((ka) => {
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        doc.text(ka.label + ':', margin + spacing.lg, catY);
+
+        doc.setFont('helvetica', 'normal');
+        const valText = ka.value.toString().substring(0, 60);
+        const valLines = doc.splitTextToSize(valText, contentWidth - 150);
+        doc.text(valLines, margin + 150, catY);
+        catY += valLines.length * 12 + 4;
+      });
+    }
+
+    // Personalized recommendations for this category
+    const catRecs = (recommendationsData || []).filter(r => r.category === recCategoryMap[i]).slice(0, 2);
+    if (catRecs.length > 0) {
+      catY += spacing.xs;
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RECOMMENDED ACTIONS', margin + spacing.lg, catY);
+      catY += spacing.sm;
+
+      catRecs.forEach((rec) => {
+        // Priority badge
+        const prioColors = {
+          'High': colors.error,
+          'Medium': colors.warning,
+          'Ongoing': colors.secondary
+        };
+        const prioColor = prioColors[rec.priorityLabel] || colors.secondary;
+        setFillColor(prioColor);
+        doc.roundedRect(margin + spacing.lg, catY - 2, 45, 14, radius.sm, radius.sm, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rec.priorityLabel, margin + spacing.lg + 22, catY + 8, { align: 'center' });
+
+        // Title
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        doc.text(rec.title, margin + spacing.lg + 55, catY + 8);
+        catY += 16;
+
+        // Current state
+        if (rec.currentState) {
+          setColor(colors.textMuted);
+          doc.setFontSize(fontSize.sm);
+          doc.setFont('helvetica', 'normal');
+          const csLines = doc.splitTextToSize(rec.currentState, contentWidth - 60);
+          doc.text(csLines, margin + spacing.lg + 55, catY);
+          catY += csLines.length * 10 + 6;
+        }
+      });
+    }
+
+    y = catY + spacing.lg;
+  }
+
+  addFooter(6);
+
+  } else {
+  // ============================================
+  // SNF PATH: Pages 2-6 (PRESERVED - existing logic)
+  // ============================================
+
+    // ============================================
+    // PAGE 2: FINANCIAL INSIGHTS
+    // ============================================
+    doc.addPage();
+    addHeader('Financial Impact Analysis');
+    y = 95;
+
+    // Segment context box - V4.9: Improved card design
+    if (segment && FacilityTypes[segment]) {
+      setFillColor(colors.bgLight);
+      doc.roundedRect(margin, y, contentWidth, 80, radius.md, radius.md, 'F');
+
+      // Accent bar
+      setFillColor(colors.secondary);
+      doc.roundedRect(margin, y, 5, 80, radius.sm, radius.sm, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.lg);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Your Segment: ' + segmentLabel, margin + spacing.lg, y + 24);
+
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      const chars = FacilityTypes[segment].characteristics;
+
+      // V4.10: Adjusted column widths for SNF long text values
+      const col1X = margin + spacing.lg;
+      const col2X = margin + 220;
+      const col3X = margin + 380;
+
       setColor(colors.textMuted);
       doc.setFontSize(fontSize.sm);
-      doc.text(metric.label + ':', margin + spacing.lg, metricY);
+      doc.text('Payer Mix:', col1X, y + 45);
+      doc.text('Typical AR Days:', col2X, y + 45);
+      doc.text('Complexity:', col3X, y + 45);
+
       setColor(colors.textDark);
       doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'bold');
-      const answerText = String(metric.answer).substring(0, 55) + (String(metric.answer).length > 55 ? '...' : '');
-      doc.text(answerText, margin + 155, metricY);
+
+      // V4.10: Handle long payer mix text with wrapping
+      const payerMixWidth = col2X - col1X - 15;
+      const payerMixLines = doc.splitTextToSize(chars.payerMix, payerMixWidth);
+      doc.text(payerMixLines, col1X, y + 62);
+
+      doc.text(chars.arDaysRange, col2X, y + 62);
+
+      // V4.10: Truncate complexity if too long
+      const maxComplexityWidth = contentWidth + margin - col3X - 10;
+      let complexityText = chars.complexity;
+      if (doc.getTextWidth(complexityText) > maxComplexityWidth) {
+        complexityText = complexityText.substring(0, 25) + '...';
+      }
+      doc.text(complexityText, col3X, y + 62);
+
+      y += 100;
+    }
+
+    // V4.11: SNF Financial Impact - using direct billing inputs
+    if (segment === 'SNF' && insights && insights.snfMonthlyBilling > 0) {
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Your Patient Billing', margin, y);
+      y += spacing.md;
+
+      // Monthly billing highlight
+      setFillColor([240, 249, 255]);
+      doc.roundedRect(margin, y, contentWidth, 65, radius.md, radius.md, 'F');
+      setFillColor(colors.secondary);
+      doc.roundedRect(margin, y, 5, 65, radius.sm, radius.sm, 'F');
+
+      setColor(colors.secondary);
+      doc.setFontSize(36);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfMonthlyBilling), margin + spacing.lg, y + 38);
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
       doc.setFont('helvetica', 'normal');
-      metricY += 16;
+      doc.text('/month in patient responsibility', margin + 160, y + 38);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.text(`(${formatCurrency(insights.snfAnnualBilling)} annually)`, margin + spacing.lg, y + 55);
+
+      y += 80;
+
+      // Current state - Cash in AR and Bad Debt
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CURRENT STATE', margin, y);
+      y += spacing.md;
+
+      const currentStateWidth = (contentWidth - 12) / 2;
+
+      // Cash stuck in AR
+      setFillColor([254, 242, 242]); // Light red
+      doc.roundedRect(margin, y, currentStateWidth, 75, radius.md, radius.md, 'F');
+      setFillColor(colors.error);
+      doc.roundedRect(margin, y, currentStateWidth, 4, radius.md, radius.md, 'F');
+
+      setColor(colors.error);
+      doc.setFontSize(28);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfCashInAR), margin + spacing.md, y + 35);
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Cash stuck in A/R', margin + spacing.md, y + 52);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.text(`${insights.snfCurrentARDays} days to collect`, margin + spacing.md, y + 66);
+
+      // Annual bad debt risk
+      const col2X = margin + currentStateWidth + 12;
+      setFillColor([255, 251, 235]); // Light amber
+      doc.roundedRect(col2X, y, currentStateWidth, 75, radius.md, radius.md, 'F');
+      setFillColor(colors.warning);
+      doc.roundedRect(col2X, y, currentStateWidth, 4, radius.md, radius.md, 'F');
+
+      setColor(colors.warning);
+      doc.setFontSize(28);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfCurrentBadDebt), col2X + spacing.md, y + 35);
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Annual bad debt risk', col2X + spacing.md, y + 52);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.text('~3% of patient billing', col2X + spacing.md, y + 66);
+
+      y += 90;
+
+      // PatientPay Impact
+      setFillColor([240, 253, 244]); // Light green
+      doc.roundedRect(margin, y, contentWidth, 120, radius.lg, radius.lg, 'F');
+      setFillColor(colors.success);
+      doc.roundedRect(margin, y, contentWidth, 5, radius.lg, radius.lg, 'F');
+
+      setColor(colors.success);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('WITH PATIENTPAY', margin + spacing.lg, y + 24);
+
+      // Impact metrics in columns
+      const impactColWidth = (contentWidth - 48) / 3;
+      const impactY = y + 45;
+
+      // Cash freed
+      setColor(colors.success);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfCashFreedByARReduction), margin + spacing.lg, impactY);
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.sm);
+      doc.text('Cash freed', margin + spacing.lg, impactY + 16);
+
+      // AR days reduction
+      setColor(colors.success);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${insights.snfCurrentARDays} to ${insights.snfProjectedARDays}`, margin + spacing.lg + impactColWidth, impactY);
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.sm);
+      doc.text('AR days (47% faster)', margin + spacing.lg + impactColWidth, impactY + 16);
+
+      // Bad debt savings
+      setColor(colors.success);
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfBadDebtSavings), margin + spacing.lg + impactColWidth * 2, impactY);
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.sm);
+      doc.text('Bad debt reduced', margin + spacing.lg + impactColWidth * 2, impactY + 16);
+
+      // Total annual impact
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.text('Total Annual Impact:', margin + spacing.lg, impactY + 45);
+      setColor(colors.success);
+      doc.setFontSize(32);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(insights.snfTotalAnnualImpact) + '+', margin + 140, impactY + 45);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Based on PatientPay customer results: 47% AR reduction, 40% bad debt reduction', margin + spacing.lg, impactY + 62);
+
+      y += 135;
+    }
+
+    // Financial insights - V4.9: Improved card layout
+    if (insights) {
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Your Financial Numbers', margin, y);
+
+      y += spacing.lg;
+
+      // Big stat cards - V4.9: Better proportions and visual hierarchy
+      const financialStats = [
+        {
+          label: 'Annual Revenue',
+          value: formatCurrency(insights.annualRevenue),
+          sublabel: 'Based on beds x rate x occupancy',
+          color: colors.primary
+        },
+        {
+          label: 'Cash Tied in A/R',
+          value: formatCurrency(insights.cashInAR),
+          sublabel: `Currently at ${insights.arDays} days`,
+          color: colors.warning
+        },
+        {
+          label: 'Potential to Free',
+          value: formatCurrency(insights.potentialFreedCash),
+          sublabel: `If reduced to ${insights.targetArDays} days`,
+          color: colors.success
+        },
+      ];
+
+      const statBoxWidth = (contentWidth - 24) / 3;
+      const statGap = 12;
+      financialStats.forEach((stat, i) => {
+        const boxX = margin + (i * (statBoxWidth + statGap));
+
+        setFillColor(colors.bgLight);
+        doc.roundedRect(boxX, y, statBoxWidth, 100, radius.lg, radius.lg, 'F');
+
+        // Color accent at top of each card
+        setFillColor(stat.color);
+        doc.roundedRect(boxX, y, statBoxWidth, 4, radius.lg, radius.lg, 'F');
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'bold');
+        doc.text(stat.label.toUpperCase(), boxX + spacing.md, y + 24);
+
+        setColor(stat.color);
+        doc.setFontSize(24);
+        doc.setFont('helvetica', 'bold');
+        doc.text(stat.value, boxX + spacing.md, y + 56);
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        const subLines = doc.splitTextToSize(stat.sublabel, statBoxWidth - 28);
+        doc.text(subLines, boxX + spacing.md, y + 78);
+      });
+
+      y += 125;
+
+      // Multi-guarantor insight (if applicable) - V4.14: Enhanced with complexity multiplier & 3-column metrics
+      // V4.12.2: Only show if there's enough space on the page
+      const multiGuarantorHeight = 155;
+      const footerSpace = 60;
+      if (insights.avgPayersPerResident > 1 && (y + multiGuarantorHeight + footerSpace < pageHeight)) {
+        const personTerm = segment === 'SNF' ? 'patient' : 'resident';
+        const personTermPlural = segment === 'SNF' ? 'Patients' : 'Residents';
+        const complexityMultiplier = insights.avgPayersPerResident.toFixed(1);
+
+        // Main container
+        setFillColor([240, 249, 255]); // Light blue background
+        doc.roundedRect(margin, y, contentWidth, 140, radius.lg, radius.lg, 'F');
+
+        // Left accent bar
+        setFillColor([139, 92, 246]); // Purple accent (matches UI)
+        doc.roundedRect(margin, y, 5, 140, radius.sm, radius.sm, 'F');
+
+        // Title
+        setColor([139, 92, 246]);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Billing Complexity Multiplier', margin + spacing.lg, y + 24);
+
+        // Subtitle text
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Each ${personTerm} generates ${insights.avgPayersPerResident} billing relationships`, margin + spacing.lg, y + 42);
+
+        // 3-column metric boxes
+        const metricY = y + 54;
+        const metricBoxWidth = (contentWidth - spacing.lg * 2 - 16) / 3;
+        const metricBoxHeight = 50;
+
+        // Column 1: Complexity multiplier
+        setFillColor([245, 240, 255]); // Light purple
+        doc.roundedRect(margin + spacing.lg, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+        setColor([139, 92, 246]);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${complexityMultiplier}x`, margin + spacing.lg + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Complexity vs. single payer', margin + spacing.lg + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+        // Column 2: Total family payers
+        const col2X = margin + spacing.lg + metricBoxWidth + 8;
+        setFillColor([235, 248, 255]); // Light blue
+        doc.roundedRect(col2X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+        setColor(colors.secondary);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${insights.totalPayers}`, col2X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Total family payers', col2X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+        // Column 3: Split billing residents/patients
+        const col3X = col2X + metricBoxWidth + 8;
+        setFillColor([236, 253, 245]); // Light green
+        doc.roundedRect(col3X, metricY, metricBoxWidth, metricBoxHeight, radius.md, radius.md, 'F');
+        setColor([16, 185, 129]); // Green
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${insights.multiGuarantorResidents}`, col3X + metricBoxWidth / 2, metricY + 22, { align: 'center' });
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${personTermPlural} with split billing`, col3X + metricBoxWidth / 2, metricY + 38, { align: 'center' });
+
+        // Impact callout bar (if inquiry cost exists)
+        if (insights.inquiryCost > 0) {
+          const calloutY = metricY + metricBoxHeight + 10;
+          setFillColor([255, 251, 235]); // Light amber
+          doc.roundedRect(margin + spacing.lg, calloutY, contentWidth - spacing.lg * 2, 24, radius.sm, radius.sm, 'F');
+          setFillColor([252, 201, 59]); // Amber left border
+          doc.roundedRect(margin + spacing.lg, calloutY, 3, 24, 1, 1, 'F');
+
+          setColor([180, 140, 20]);
+          doc.setFontSize(fontSize.sm);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`$${insights.inquiryCost.toLocaleString()}/year`, margin + spacing.lg + 10, calloutY + 15);
+          doc.setFont('helvetica', 'normal');
+          setColor(colors.textMuted);
+          const impactText = insights.avgPayersPerResident > 2
+            ? `estimated inquiry cost — ${insights.avgPayersPerResident} payers per ${personTerm} multiply coordination burden`
+            : 'estimated inquiry cost — individual statements could reduce this by 60-70%';
+          doc.text(impactText, margin + spacing.lg + 80, calloutY + 15);
+        }
+
+        y += multiGuarantorHeight;
+      }
+
+      // ROI Calculation Box - V4.9: Better visual design with columns
+      const roiBoxHeight = insights.annualCardFeesAbsorbed > 0 ? 125 : 108;
+      setFillColor(colors.primary);
+      doc.roundedRect(margin, y, contentWidth, roiBoxHeight, radius.lg, radius.lg, 'F');
+
+      setColor(colors.accent);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ESTIMATED ROI WITH PATIENTPAY', margin + spacing.lg, y + 26);
+
+      // Calculate ROI estimates
+      // V4.14: Updated for staff-based inquiry cost calculation
+      const inquiryCostSavings = insights.potentialInquirySavings || 0;
+      const arReduction = insights.potentialFreedCash || 0;
+      const autopayIncrease = formData.bedCount ? Math.round(formData.bedCount * 0.25 * (formData.avgMonthlyRate || 5000) * 12 * 0.15) : 0; // 15% revenue acceleration from 25% more autopay
+
+      const roiItems = [
+        { label: 'Inquiry Cost Savings', value: inquiryCostSavings ? formatCurrency(inquiryCostSavings) + '/year' : 'Based on staff data' },
+        { label: 'Cash Freed from A/R', value: formatCurrency(arReduction) },
+        { label: 'Revenue Acceleration', value: autopayIncrease ? formatCurrency(autopayIncrease) : 'Based on autopay increase' }
+      ];
+
+      // V4.8: Add credit card fees absorbed if applicable
+      if (insights.annualCardFeesAbsorbed > 0) {
+        roiItems.push({
+          label: 'Card Fees Eliminated',
+          value: formatCurrency(insights.annualCardFeesAbsorbed) + '/year'
+        });
+      }
+
+      let roiY = y + 48;
+      roiItems.forEach((item) => {
+        setColor(colors.white);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'normal');
+        doc.text(item.label + ':', margin + spacing.lg, roiY);
+        setColor(colors.accent);
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.value, margin + 210, roiY);
+        roiY += 20;
+      });
+
+      y += roiBoxHeight + spacing.lg;
+    }
+
+    // V4.10: Check if Industry Context will fit on current page (need ~130px)
+    // If not, it will be shown at bottom or we skip it to avoid overflow
+    const industryContextHeight = 115; // Title + box + margins
+    const availableSpace = pageHeight - 60 - y; // 60 for footer
+
+    if (availableSpace >= industryContextHeight) {
+      // Industry benchmark context - V4.9: Better visual design with dividers
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.lg);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Industry Context', margin, y);
+
+      y += spacing.lg;
+      setFillColor(colors.bgLight);
+      doc.roundedRect(margin, y, contentWidth, 85, radius.md, radius.md, 'F');
+
+    const benchmarks = [
+      { stat: '75%', label: 'of bill payers want card payment options' },
+      { stat: '67%', label: 'would choose a facility that accepts cards' },
+      { stat: '96%', label: 'reduction in processing time with automation' },
+      { stat: '37%', label: 'miss payments due to billing complexity' }
+    ];
+
+    const benchWidth = contentWidth / 4;
+    benchmarks.forEach((b, i) => {
+      const bx = margin + (i * benchWidth);
+
+      // Add divider between items
+      if (i > 0) {
+        setFillColor([220, 225, 230]);
+        doc.rect(bx, y + 15, 1, 55, 'F');
+      }
+
+      setColor(colors.secondary);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text(b.stat, bx + benchWidth/2, y + 35, { align: 'center' });
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      const labelLines = doc.splitTextToSize(b.label, benchWidth - 20);
+      doc.text(labelLines, bx + benchWidth/2, y + 55, { align: 'center' });
     });
+    } // End of Industry Context conditional block
 
-    // Improvement opportunities - V4.9: Better visual separation
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
+    addFooter(2);
+
+    // ============================================
+    // PAGE 3: YOUR STRENGTHS (V4.8 - follows emotional arc)
+    // ============================================
+    doc.addPage();
+    addHeader('What You\'re Doing Well');
+    y = 95;
+
+    // Benchmark Comparison Summary at top - V4.9: Cleaner layout
+    if (gapAnalysisData) {
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.lg);
+      doc.setFont('helvetica', 'bold');
+      doc.text('How You Compare', margin, y);
+
+      y += spacing.md;
+
+      // Overall comparison box - V4.9: Better visual hierarchy
+      const overallGap = gapAnalysisData.overall.gap;
+      const overallBgColor = overallGap >= 0 ? [240, 253, 244] : [255, 251, 235];
+      const overallTextColor = overallGap >= 0 ? colors.success : colors.warning;
+
+      setFillColor(overallBgColor);
+      doc.roundedRect(margin, y, contentWidth, 60, radius.md, radius.md, 'F');
+
+      // Your score
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'bold');
+      doc.text('YOUR SCORE', margin + 28, y + 18);
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.display);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${scores.overall}`, margin + 28, y + 46);
+
+      // Gap indicator
+      setColor(overallTextColor);
+      doc.setFontSize(fontSize.h2);
+      doc.setFont('helvetica', 'bold');
+      doc.text(overallGap >= 0 ? `+${overallGap}` : `${overallGap}`, margin + 145, y + 38);
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'normal');
+      doc.text('vs benchmark', margin + 145, y + 18);
+
+      // Benchmark
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.xs);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${segmentLabel.toUpperCase()} AVERAGE`, margin + 245, y + 18);
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.display);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${gapAnalysisData.overall.benchmark}`, margin + 245, y + 46);
+
+      // Performance badge - V4.10: Wider badge for longer text, positioned at right edge
+      const badgeWidth = 130;
+      const badgeX = contentWidth + margin - badgeWidth; // Right-align with content area
+      setFillColor(overallTextColor);
+      doc.roundedRect(badgeX, y + 15, badgeWidth, 30, radius.sm, radius.sm, 'F');
+      setColor(colors.white);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      const perfLabel = overallGap >= 5 ? 'Above Benchmark' : overallGap >= 0 ? 'At Benchmark' : 'Below Benchmark';
+      doc.text(perfLabel, badgeX + badgeWidth / 2, y + 35, { align: 'center' });
+
+      y += 80;
+    }
+
+    // Your Strengths Section - V4.9: Better visual hierarchy
+    setColor(colors.success);
+    doc.setFontSize(fontSize.xl);
     doc.setFont('helvetica', 'bold');
-    doc.text('Opportunities:', margin + spacing.lg, metricY + 12);
+    doc.text('Your Strengths', margin, y);
 
-    doc.setFont('helvetica', 'normal');
+    y += spacing.lg;
+
+    // V4.8: Check for strong categories first
+    if (strengthsData.strongCategories && strengthsData.strongCategories.length > 0) {
+      const boxHeight = 20 + (strengthsData.strongCategories.length * 40);
+      setFillColor([240, 253, 244]);
+      doc.roundedRect(margin, y, contentWidth, boxHeight, radius.md, radius.md, 'F');
+      setFillColor(colors.success);
+      doc.roundedRect(margin, y, 5, boxHeight, radius.sm, radius.sm, 'F');
+
+      let strengthY = y + 28;
+      strengthsData.strongCategories.forEach((cat) => {
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text(cat.name, margin + spacing.lg, strengthY);
+
+        setColor(colors.success);
+        doc.setFontSize(fontSize.md);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cat.score}/100`, margin + 225, strengthY);
+
+        // Green badge for positive gap
+        setFillColor(colors.success);
+        doc.roundedRect(margin + 295, strengthY - 10, 90, 18, radius.sm, radius.sm, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.sm);
+        doc.text(`+${cat.gap} above`, margin + 340, strengthY, { align: 'center' });
+
+        strengthY += 40;
+      });
+      y += boxHeight + spacing.md;
+
+    } else if (strengthsData.relativeStrength) {
+      // V4.8 Fallback: Show relative strength (closest to benchmark) - V4.9: Better styling
+      setFillColor([255, 251, 235]); // Amber tint for "building towards"
+      doc.roundedRect(margin, y, contentWidth, 70, radius.md, radius.md, 'F');
+      setFillColor(colors.warning);
+      doc.roundedRect(margin, y, 5, 70, radius.sm, radius.sm, 'F');
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Your strongest area relative to benchmark:', margin + spacing.lg, y + 20);
+
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      setColor(colors.textDark);
+      doc.text(strengthsData.relativeStrength.name, margin + spacing.lg, y + 42);
+
+      setColor(colors.warning);
+      doc.setFontSize(fontSize.md);
+      doc.text(`${strengthsData.relativeStrength.score}/100`, margin + 255, y + 42);
+      doc.text(`${strengthsData.relativeStrength.gap} vs benchmark`, margin + 335, y + 42);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'normal');
+      doc.text('This is your closest category to reaching benchmark performance.', margin + spacing.lg, y + 60);
+
+      y += 85;
+
+      // Show moderate questions if available (building blocks) - V4.9: Better card design
+      if (strengthsData.moderateQuestions && strengthsData.moderateQuestions.length > 0) {
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.md);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Building Blocks in Place:', margin, y);
+        y += spacing.md;
+
+        strengthsData.moderateQuestions.slice(0, 3).forEach((q) => {
+          setFillColor(colors.bgLight);
+          doc.roundedRect(margin, y, contentWidth, 38, radius.sm, radius.sm, 'F');
+
+          // Score badge
+          setFillColor(colors.secondary);
+          doc.roundedRect(margin + spacing.sm, y + 8, 36, 22, radius.sm, radius.sm, 'F');
+          setColor(colors.white);
+          doc.setFontSize(fontSize.lg);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${q.score}`, margin + 30, y + 24, { align: 'center' });
+
+          setColor(colors.textDark);
+          doc.setFontSize(fontSize.sm);
+          doc.setFont('helvetica', 'normal');
+          const qText = doc.splitTextToSize(q.question, 390);
+          doc.text(qText[0], margin + 58, y + 22);
+
+          y += 44;
+        });
+      }
+
+    } else if (strengthsData.strongQuestions && strengthsData.strongQuestions.length > 0) {
+      // Fallback: Show strong individual questions - V4.9: Better card design
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.body);
+      doc.text('Areas where you\'re performing well:', margin, y);
+      y += spacing.md;
+
+      strengthsData.strongQuestions.slice(0, 3).forEach((q) => {
+        setFillColor(colors.bgLight);
+        doc.roundedRect(margin, y, contentWidth, 42, radius.sm, radius.sm, 'F');
+
+        // Score badge
+        setFillColor(colors.success);
+        doc.roundedRect(margin + spacing.sm, y + 10, 36, 22, radius.sm, radius.sm, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${q.score}`, margin + 30, y + 26, { align: 'center' });
+
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        const qText = doc.splitTextToSize(q.question, 390);
+        doc.text(qText[0], margin + 58, y + 24);
+
+        y += 48;
+      });
+
+    } else {
+      // V4.8: Early journey framing - V4.9: Better styling
+      setFillColor([240, 249, 255]);
+      doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
+      setFillColor(colors.secondary);
+      doc.roundedRect(margin, y, 5, 55, radius.sm, radius.sm, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Early in Your Modernization Journey', margin + spacing.lg, y + 22);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text('The opportunities below represent significant potential for improvement.', margin + spacing.lg, y + 42);
+
+      y += 70;
+    }
+
+    y += spacing.md;
+
+    // Your Opportunities Section (Categories below benchmark) - V4.9: Better visual design
+    setColor(colors.warning);
+    doc.setFontSize(fontSize.xl);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Your Opportunities', margin, y);
+
+    y += spacing.lg;
+
+    // Get categories below benchmark, ordered by index (Ops -> Family -> Competitive)
+    const opportunityCategories = gapAnalysisData ? gapAnalysisData.categories
+      .filter(c => c.gap < 0)
+      .sort((a, b) => a.index - b.index) : [];
+
+    if (opportunityCategories.length > 0) {
+      opportunityCategories.forEach((cat) => {
+        setFillColor([255, 251, 235]);
+        doc.roundedRect(margin, y, contentWidth, 45, radius.sm, radius.sm, 'F');
+        setFillColor(colors.warning);
+        doc.roundedRect(margin, y, 4, 45, radius.sm, radius.sm, 'F');
+
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text(cat.name, margin + spacing.md, y + 18);
+
+        setColor(colors.warning);
+        doc.setFontSize(fontSize.md);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cat.score}/100`, margin + 255, y + 18);
+
+        // Warning badge for negative gap
+        setFillColor(colors.warning);
+        doc.roundedRect(margin + 335, y + 8, 85, 22, radius.sm, radius.sm, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cat.gap} vs benchmark`, margin + 377, y + 22, { align: 'center' });
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Industry benchmark: ${cat.benchmark}`, margin + spacing.md, y + 36);
+
+        y += 52;
+      });
+    }
+
+    // Financial Opportunity (Cash in AR + Card Fees) - V4.9: Better card design
+    if (insights && (insights.potentialFreedCash > 0 || insights.annualCardFeesAbsorbed > 0)) {
+      y += spacing.sm;
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Financial Opportunity', margin, y);
+      y += spacing.md;
+
+      const showBoth = insights.potentialFreedCash > 0 && insights.annualCardFeesAbsorbed > 0;
+      const boxWidth = showBoth ? (contentWidth - 12) / 2 : contentWidth;
+
+      if (insights.potentialFreedCash > 0) {
+        setFillColor([240, 253, 244]);
+        doc.roundedRect(margin, y, boxWidth, 70, radius.md, radius.md, 'F');
+
+        // Top accent
+        setFillColor(colors.success);
+        doc.roundedRect(margin, y, boxWidth, 3, radius.md, radius.md, 'F');
+
+        setColor(colors.success);
+        doc.setFontSize(24);
+        doc.setFont('helvetica', 'bold');
+        doc.text(formatCurrency(insights.potentialFreedCash + (insights.cashFreedByAutopay || 0)), margin + spacing.md, y + 32);
+
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Cash tied up in A/R', margin + spacing.md, y + 50);
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Based on ${insights.arDays} days vs ${insights.targetArDays}-day target`, margin + spacing.md, y + 64);
+      }
+
+      if (insights.annualCardFeesAbsorbed > 0) {
+        const cardBoxX = showBoth ? margin + boxWidth + 12 : margin;
+        setFillColor([255, 251, 235]);
+        doc.roundedRect(cardBoxX, y, boxWidth, 70, radius.md, radius.md, 'F');
+
+        // Top accent
+        setFillColor(colors.warning);
+        doc.roundedRect(cardBoxX, y, boxWidth, 3, radius.md, radius.md, 'F');
+
+        setColor(colors.warning);
+        doc.setFontSize(24);
+        doc.setFont('helvetica', 'bold');
+        doc.text(formatCurrency(insights.annualCardFeesAbsorbed), cardBoxX + spacing.md, y + 32);
+
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Card fees absorbed/year', cardBoxX + spacing.md, y + 50);
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Eliminate with convenience fee pass-through', cardBoxX + spacing.md, y + 64);
+      }
+    }
+
+    addFooter(3);
+
+    // ============================================
+    // PAGE 4: ACTIONABLE IMPROVEMENTS & PROJECTIONS (V4.8)
+    // ============================================
+    doc.addPage();
+    addHeader('Your Path to Improvement');
+    y = 95;
+
+    // PatientPay Projections Section - V4.9: Improved visual design
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.xl);
+    doc.setFont('helvetica', 'bold');
+    doc.text('With PatientPay', margin, y);
+
+    y += spacing.lg;
+
+    // Large projection comparison box - V4.9: Better proportions
+    setFillColor([240, 249, 255]);
+    doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+    setFillColor(colors.secondary);
+    doc.roundedRect(margin, y, 5, 90, radius.sm, radius.sm, 'F');
+
+    // Current score
     setColor(colors.textMuted);
-    doc.setFontSize(fontSize.sm);
-    metricY += 28;
-    cat.improvements.slice(0, 2).forEach((imp, i) => {
-      doc.text(`${i + 1}. ${imp}`, margin + spacing.lg + 5, metricY);
-      metricY += 14;
-    });
-
-    y += 205;
-  });
-
-  addFooter(5);
-
-  // ============================================
-  // PAGE 6: BENCHMARKS & RECOMMENDATIONS
-  // ============================================
-  doc.addPage();
-  addHeader('Industry Benchmarks & Action Plan');
-  y = 95;
-
-  // Segment-specific benchmarks - V4.9: Better section header
-  setColor(colors.textDark);
-  doc.setFontSize(fontSize.xl);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${segmentLabel} Industry Benchmarks`, margin, y);
-
-  y += spacing.lg;
-
-  // Benchmark table
-  const segmentBenchmarks = {
-    SL: [
-      { metric: 'Target AR Days', benchmark: '<45 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
-      { metric: 'Private Pay %', benchmark: '66-95%', yours: '~80% typical' },
-      { metric: 'Autopay Adoption', benchmark: '40-50%', yours: answers['autopay_rate'] ? `${answers['autopay_rate']}%` : 'N/A' },
-      { metric: 'Online Payments', benchmark: '60%+', yours: answers['payment_methods']?.includes('Credit cards') ? 'Enabled' : 'Not enabled' }
-    ],
-    MC: [
-      { metric: 'Target AR Days', benchmark: '<45 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
-      { metric: 'Private Pay %', benchmark: '80%+', yours: '~80% typical' },
-      { metric: 'Family Portal Usage', benchmark: '50%+', yours: answers['family_portal'] ? 'Available' : 'Not available' },
-      { metric: 'Multi-Guarantor', benchmark: '60% of residents', yours: answers['payers_per_resident'] || 'N/A' }
-    ],
-    // V4.10: SNF benchmarks updated to focus on patient responsibility collection (Option A)
-    SNF: [
-      { metric: 'Collection Rate', benchmark: '90%', yours: answers['snf_collection_rate'] ? `${answers['snf_collection_rate']}%` : 'Industry avg: 75%' },
-      { metric: 'Private Pay %', benchmark: '~25%', yours: insights?.privatePayPct ? `${insights.privatePayPct}%` : '~25% typical' },
-      { metric: 'Autopay Enrollment', benchmark: '50%+', yours: answers['snf_autopay_enrollment'] ? `${answers['snf_autopay_enrollment']}%` : 'N/A' },
-      { metric: 'Multi-Guarantor', benchmark: 'Automated', yours: answers['snf_multi_guarantor'] === 'automated' ? 'Yes' : (answers['snf_multi_guarantor'] || 'N/A') }
-    ],
-    CCRC: [
-      { metric: 'Target AR Days', benchmark: '<20 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
-      { metric: 'Private Pay %', benchmark: '85%', yours: '~85% typical' },
-      { metric: 'Multi-Level Billing', benchmark: 'Unified system', yours: answers['ccrc_multi_level'] || 'N/A' },
-      { metric: 'Entrance Fee Handling', benchmark: 'Automated', yours: answers['ccrc_entrance_fee'] || 'N/A' }
-    ]
-  };
-
-  const benchmarksForSegment = segmentBenchmarks[segment] || segmentBenchmarks['SL'];
-
-  // Table header - V4.9: Better proportions and styling
-  setFillColor(colors.primary);
-  doc.roundedRect(margin, y, contentWidth, 28, radius.sm, radius.sm, 'F');
-  setColor(colors.white);
-  doc.setFontSize(fontSize.body);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Metric', margin + 18, y + 18);
-  doc.text('Industry Benchmark', margin + 185, y + 18);
-  doc.text('Your Status', margin + 365, y + 18);
-
-  y += 28;
-
-  // Table rows - V4.9: Taller rows with better spacing
-  benchmarksForSegment.forEach((row, i) => {
-    setFillColor(i % 2 === 0 ? colors.bgLight : colors.white);
-    doc.rect(margin, y, contentWidth, 26, 'F');
-
-    setColor(colors.textDark);
-    doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'normal');
-    doc.text(row.metric, margin + 18, y + 17);
-
-    setColor(colors.secondary);
+    doc.setFontSize(fontSize.xs);
     doc.setFont('helvetica', 'bold');
-    doc.text(row.benchmark, margin + 185, y + 17);
-
+    doc.text('YOUR CURRENT SCORE', margin + 40, y + 20);
     setColor(colors.textDark);
-    doc.setFont('helvetica', 'normal');
-    doc.text(row.yours, margin + 365, y + 17);
+    doc.setFontSize(38);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${projectionsData.current.overall}`, margin + 40, y + 60);
 
-    y += 26;
-  });
+    // Arrow - V4.10: Use visual arrow shape instead of unicode (font compatibility)
+    setColor(colors.secondary);
+    // Draw arrow using lines
+    const arrowX = margin + 175;
+    const arrowY = y + 45;
+    doc.setLineWidth(3);
+    setDrawColor(colors.secondary);
+    doc.line(arrowX, arrowY, arrowX + 35, arrowY); // Horizontal line
+    doc.line(arrowX + 25, arrowY - 10, arrowX + 35, arrowY); // Upper arrow head
+    doc.line(arrowX + 25, arrowY + 10, arrowX + 35, arrowY); // Lower arrow head
 
-  // Table border
-  setDrawColor([220, 225, 230]);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(margin, y - (benchmarksForSegment.length * 26), contentWidth, benchmarksForSegment.length * 26, radius.sm, radius.sm, 'S');
+    // Projected score
+    setColor(colors.success);
+    doc.setFontSize(fontSize.xs);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROJECTED WITH PATIENTPAY', margin + 245, y + 20);
+    doc.setFontSize(38);
+    doc.text(`${projectionsData.projected.overall}`, margin + 245, y + 60);
 
-  y += spacing.section;
-
-  // Action Plan - V4.9: Better section styling
-  setColor(colors.textDark);
-  doc.setFontSize(fontSize.xl);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Recommended Action Plan', margin, y);
-
-  y += spacing.lg;
-
-  // Priority actions based on scores
-  const actions = [];
-
-  if (scores.categories[0] < 60) {
-    actions.push({ priority: 'High', action: 'Implement automated statement generation through PointClickCare integration', impact: 'Reduce staff time by 60%+' });
-  }
-  if (scores.categories[1] < 60) {
-    actions.push({ priority: 'High', action: 'Enable multi-guarantor billing to send individual statements to each family payer', impact: 'Improve collection rates 15-20%' });
-  }
-  if (!scores.useTwoCategories && scores.categories[2] < 60) {
-    actions.push({ priority: 'Medium', action: 'Add card payment acceptance and online payment portal', impact: '67% of families prefer card-accepting facilities' });
-  }
-  if (answers['autopay_rate'] && answers['autopay_rate'] < 40) {
-    actions.push({ priority: 'Medium', action: 'Launch autopay enrollment campaign to increase from ' + answers['autopay_rate'] + '% to 50%+', impact: 'Reduce late payments, improve cash flow' });
-  }
-
-  // Add general recommendations if not enough specific ones
-  if (actions.length < 3) {
-    actions.push({ priority: 'Ongoing', action: 'Schedule PatientPay demo to explore full PointClickCare integration capabilities', impact: 'Comprehensive billing modernization' });
-  }
-
-  actions.slice(0, 4).forEach((action, i) => {
-    setFillColor(colors.bgLight);
-    doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
-
-    // Priority badge - V4.9: Larger and more prominent
-    const priorityColor = action.priority === 'High' ? colors.error : action.priority === 'Medium' ? colors.warning : colors.success;
-    setFillColor(priorityColor);
-    doc.roundedRect(margin + spacing.sm, y + 12, 55, 22, radius.sm, radius.sm, 'F');
+    // Improvement badge with percentage - V4.9: Larger and more prominent
+    const improvementPct = Math.round((projectionsData.overallImprovement / projectionsData.current.overall) * 100);
+    setFillColor(colors.success);
+    doc.roundedRect(margin + 370, y + 18, 115, 52, radius.md, radius.md, 'F');
     setColor(colors.white);
-    doc.setFontSize(fontSize.sm);
+    doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text(action.priority, margin + 40, y + 27, { align: 'center' });
-
-    // Action text - V4.9: Better spacing
-    setColor(colors.textDark);
+    doc.text(`+${projectionsData.overallImprovement}`, margin + 428, y + 48, { align: 'center' });
     doc.setFontSize(fontSize.body);
-    doc.setFont('helvetica', 'bold');
-    const actionLines = doc.splitTextToSize(action.action, contentWidth - 95);
-    doc.text(actionLines, margin + 78, y + 22);
+    doc.text(`points (${improvementPct}%)`, margin + 428, y + 64, { align: 'center' });
 
-    // Impact - V4.9: Better label formatting
+    y += 115;
+
+    // Top 5 Improvements with enhanced formatting - V4.9: Better visual design
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.lg);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Top 5 High-Impact Improvements', margin, y);
+
+    // V4.12.2: Move subtitle to next line to prevent text overlap
+    y += 14;
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'normal');
-    doc.text('Impact: ', margin + 78, y + 44);
-    setColor(colors.secondary);
+    doc.text('Implementing all five could increase your score by up to ' + projectionsData.overallImprovement + ' points.', margin, y);
+
+    y += spacing.lg;
+
+    if (projectionsData.topImprovements.length > 0) {
+      let cumulativeScore = projectionsData.current.overall;
+      const topImprovements = projectionsData.topImprovements.slice(0, 5);
+
+      topImprovements.forEach((imp, i) => {
+        const prevScore = cumulativeScore;
+        cumulativeScore = Math.min(100, cumulativeScore + imp.overallImpact);
+
+        setFillColor(colors.bgLight);
+        doc.roundedRect(margin, y, contentWidth, 46, radius.sm, radius.sm, 'F');
+
+        // Rank circle - V4.9: Slightly larger
+        setFillColor(colors.secondary);
+        doc.circle(margin + 20, y + 23, 12, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${i + 1}`, margin + 20, y + 28, { align: 'center' });
+
+        // Points badge - V4.9: Better proportions
+        setFillColor([240, 253, 244]);
+        doc.roundedRect(margin + 42, y + 10, 58, 22, radius.sm, radius.sm, 'F');
+        setColor(colors.success);
+        doc.setFontSize(fontSize.lg);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`+${imp.overallImpact} pts`, margin + 71, y + 25, { align: 'center' });
+
+        // Description - V4.12.2: Show full description with proper truncation
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        // V4.12.2: Increased width and show two lines if needed
+        const maxDescWidth = 285;
+        const descText = doc.splitTextToSize(imp.description, maxDescWidth);
+        // Show first line, and if there's more, add ellipsis or show second line
+        if (descText.length > 1) {
+          doc.text(descText[0], margin + 112, y + 18);
+          doc.setFontSize(fontSize.sm);
+          doc.setFont('helvetica', 'normal');
+          doc.text(descText[1], margin + 112, y + 30);
+        } else {
+          doc.text(descText[0], margin + 112, y + 22);
+        }
+
+        // Running total - V4.10: Use text arrow for font compatibility
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        const scoreY = descText.length > 1 ? y + 42 : y + 38;
+        doc.text(`Score: ${prevScore} -> ${cumulativeScore}`, margin + 112, scoreY);
+
+        // Score progression box - V4.10: Show just the target score
+        setFillColor(colors.secondary);
+        doc.roundedRect(margin + 418, y + 12, 72, 24, radius.sm, radius.sm, 'F');
+        setColor(colors.white);
+        doc.setFontSize(fontSize.md);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${cumulativeScore}`, margin + 454, y + 28, { align: 'center' });
+
+        y += 52;
+      });
+    }
+
+    // Additional improvements - V4.9: Better card design
+    if (projectionsData.additionalImprovements && projectionsData.additionalImprovements.length > 0) {
+      y += spacing.md;
+
+      // Container box for additional improvements
+      setFillColor([250, 251, 252]);
+      const additionalHeight = Math.min(projectionsData.additionalImprovements.length, 4) * 18 + 35;
+      doc.roundedRect(margin, y, contentWidth, additionalHeight, radius.sm, radius.sm, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`PatientPay Also Helps With (${projectionsData.additionalImprovements.length} more):`, margin + spacing.md, y + 18);
+      y += 30;
+
+      projectionsData.additionalImprovements.slice(0, 4).forEach((imp) => {
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`\u2022  ${imp.description}`, margin + spacing.md, y);
+
+        setColor(colors.success);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`+${imp.overallImpact} pts`, margin + 450, y);
+
+        y += 16;
+      });
+
+      if (projectionsData.additionalImprovements.length > 4) {
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`+ ${projectionsData.additionalImprovements.length - 4} more improvements...`, margin + spacing.md, y);
+      }
+    }
+
+    // V4.12: Triple Win Framework for non-SNF segments
+    // V4.12.2: Only show if there's enough space on page (need ~225px for both sections)
+    const tripleWinTotalHeight = 225;
+    const availableForTripleWin = pageHeight - 60 - y; // 60 for footer
+
+    if (segment !== 'SNF' && availableForTripleWin >= tripleWinTotalHeight) {
+      y += spacing.md;
+
+      // "What Today's Families Expect" Stats Box
+      setFillColor([255, 251, 235]); // Light amber
+      doc.roundedRect(margin, y, contentWidth, 100, radius.md, radius.md, 'F');
+
+      // Accent bar
+      setFillColor(colors.accent);
+      doc.roundedRect(margin, y, 5, 100, radius.sm, radius.sm, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.lg);
+      doc.setFont('helvetica', 'bold');
+      doc.text('What Today\'s Families Expect', margin + spacing.lg, y + 22);
+
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Today\'s families aren\'t asking IF you offer modern payment options—they\'re surprised when you don\'t.', margin + spacing.lg, y + 38);
+
+      // 4 key stats in a row
+      const statsY = y + 55;
+      const statWidth = (contentWidth - 40) / 4;
+      const familyStats = [
+        { value: '78%', label: 'seniors 65+ have smartphones' },
+        { value: '70%', label: 'adults 50+ use FinTech' },
+        { value: '62%', label: 'pay bills digitally' },
+        { value: '67%', label: 'prefer card-accepting facilities' }
+      ];
+
+      familyStats.forEach((stat, i) => {
+        const statX = margin + spacing.lg + (i * statWidth);
+
+        setColor(colors.secondary);
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text(stat.value, statX, statsY);
+
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.xs);
+        doc.setFont('helvetica', 'normal');
+        const labelLines = doc.splitTextToSize(stat.label, statWidth - 10);
+        doc.text(labelLines, statX, statsY + 14);
+      });
+
+      y += 115;
+
+      // Triple Win Summary Box
+      setFillColor(colors.primary);
+      doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
+
+      // Accent line at top
+      setFillColor(colors.accent);
+      doc.roundedRect(margin, y, contentWidth, 3, radius.lg, radius.lg, 'F');
+
+      setColor(colors.accent);
+      doc.setFontSize(fontSize.md);
+      doc.setFont('helvetica', 'bold');
+      doc.text('THE ONE DECISION THAT DOES THREE THINGS', margin + spacing.lg, y + 22);
+
+      setColor(colors.white);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Smart operators don\'t make three separate investments—they make one.', margin + spacing.lg, y + 38);
+
+      // Three pillars
+      const pillarY = y + 52;
+      const pillarWidth = (contentWidth - 50) / 3;
+
+      // V4.12.1: Renamed "Edge" to "Preference" for softer, less sales-y language
+      const pillars = [
+        { title: 'Efficiency', stat: '96% faster', color: colors.secondary },
+        { title: 'Experience', stat: '72% fewer misses', color: [139, 92, 246] }, // Purple
+        { title: 'Preference', stat: '67% choose modern', color: colors.accent }
+      ];
+
+      pillars.forEach((pillar, i) => {
+        const pillarX = margin + spacing.lg + (i * (pillarWidth + 10));
+
+        // Pillar background (semi-transparent white effect using light color)
+        setFillColor([30, 50, 80]); // Slightly lighter than navy
+        doc.roundedRect(pillarX, pillarY, pillarWidth, 35, radius.sm, radius.sm, 'F');
+
+        setColor(pillar.color);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        doc.text(pillar.title, pillarX + 8, pillarY + 14);
+
+        setColor(colors.white);
+        doc.setFontSize(fontSize.sm);
+        doc.setFont('helvetica', 'normal');
+        doc.text(pillar.stat, pillarX + 8, pillarY + 28);
+      });
+
+      y += 110;
+    }
+
+    addFooter(4);
+
+    // ============================================
+    // PAGE 5: CATEGORY DEEP DIVE (with question-level scoring)
+    // ============================================
+    doc.addPage();
+    addHeader('Category Analysis');
+    y = 95;
+
+    // Detailed category breakdowns - V4.10: Use segment-aware category names
+    const categoryDetails = [
+      {
+        name: getCategoryName(0, segment),
+        score: scores.categories[0],
+        weight: weights[0],
+        focus: 'System integration, automation, and staff efficiency',
+        keyMetrics: [
+          { label: 'PCC Integration', answer: answers['pcc_integration'] || 'Not specified' },
+          { label: 'Statement Processing', answer: answers['statement_processing'] || 'Not specified' },
+          { label: 'Staff on Inquiries', answer: answers['coordination_burden'] ? `${answers['coordination_burden']} staff` : 'Not specified' }
+        ],
+        improvements: scores.categories[0] < 80 ? [
+          'Automate statement generation and delivery',
+          'Integrate billing directly with PointClickCare',
+          'Implement electronic payment acceptance'
+        ] : ['Maintain current operational excellence', 'Explore advanced automation opportunities']
+      },
+      {
+        // V4.10: Use segment-aware category names via getCategoryName
+        name: getCategoryName(1, segment),
+        score: scores.categories[1],
+        weight: weights[1],
+        focus: 'Payment flexibility, transparency, and multi-guarantor support',
+        keyMetrics: segment === 'SNF' ? [
+          // V4.13: SNF-specific metrics with split payment questions
+          { label: 'Split Billing', answer: answers['snf_multi_guarantor'] || 'Not specified' },
+          { label: 'Collection Rate', answer: answers['snf_collection_rate'] ? `${answers['snf_collection_rate']}%` : 'Not specified' },
+          { label: 'Payment Channels', answer: Array.isArray(answers['snf_payment_channels']) ? answers['snf_payment_channels'].join(', ') : 'Not specified' },
+          { label: 'Payment Types', answer: Array.isArray(answers['snf_payment_types']) ? answers['snf_payment_types'].join(', ') : 'Not specified' }
+        ] : [
+          // V4.4: Non-SNF metrics
+          { label: 'Multi-Guarantor Capability', answer: answers['multi_guarantor_capability'] || 'Not specified' },
+          { label: 'Payment Methods', answer: Array.isArray(answers['payment_methods']) ? answers['payment_methods'].join(', ') : 'Not specified' },
+          { label: 'Family Satisfaction', answer: answers['family_satisfaction'] || answers['family_portal'] || 'Not specified' }
+        ],
+        improvements: scores.categories[1] < 80 ? [
+          'Enable automated multi-guarantor split billing',
+          'Add online payment portal for families',
+          'Offer autopay enrollment options'
+        ] : ['Continue excellent family engagement', 'Consider advanced portal features']
+      }
+    ];
+
+    // Add competitive if applicable - V4.10: Use segment-aware category names
+    if (!scores.useTwoCategories) {
+      categoryDetails.push({
+        name: getCategoryName(2, segment),
+        score: scores.categories[2],
+        weight: weights[2],
+        focus: 'Market differentiation through billing experience',
+        keyMetrics: [
+          { label: 'Payment Demand', answer: answers['payment_demand'] || 'Not asked (cards accepted)' },
+          { label: 'Tour Billing Discussion', answer: answers['tour_billing'] || 'Not specified' },
+          // V4.4: Removed competitive_awareness (replaced by family_satisfaction in Family category)
+          { label: 'Family Satisfaction', answer: answers['family_satisfaction'] || 'Not asked' }
+        ],
+        improvements: scores.categories[2] < 80 ? [
+          'Highlight payment flexibility in marketing',
+          'Train sales team on billing advantages',
+          'Showcase modern billing during tours'
+        ] : ['Leverage billing as competitive advantage', 'Share family testimonials']
+      });
+    }
+
+    categoryDetails.forEach((cat, idx) => {
+      // Check for page break
+      if (y > pageHeight - 250) {
+        addFooter(5);
+        doc.addPage();
+        addHeader('Category Analysis (continued)');
+        y = 95;
+      }
+
+      // Category card - V4.9: Improved proportions and visual hierarchy
+      setFillColor(colors.bgLight);
+      doc.roundedRect(margin, y, contentWidth, 185, radius.lg, radius.lg, 'F');
+
+      // Score indicator bar
+      const catScoreColor = getScoreColorArr(cat.score);
+      setFillColor(catScoreColor);
+      doc.roundedRect(margin, y, 6, 185, radius.sm, radius.sm, 'F');
+
+      // Category header
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text(cat.name, margin + spacing.lg, y + 28);
+
+      // Score badge - V4.9: Larger and more prominent
+      setFillColor(catScoreColor);
+      doc.roundedRect(margin + 345, y + 12, 70, 28, radius.sm, radius.sm, 'F');
+      setColor(colors.white);
+      doc.setFontSize(fontSize.xl);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${cat.score}/100`, margin + 380, y + 31, { align: 'center' });
+
+      // Weight badge
+      setFillColor([230, 235, 240]);
+      doc.roundedRect(margin + 422, y + 14, 65, 22, radius.sm, radius.sm, 'F');
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${Math.round(cat.weight * 100)}% weight`, margin + 454, y + 29, { align: 'center' });
+
+      // Focus area
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text(cat.focus, margin + spacing.lg, y + 50);
+
+      // Your responses section - V4.9: Better label/value formatting
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Your Responses:', margin + spacing.lg, y + 75);
+
+      doc.setFont('helvetica', 'normal');
+      let metricY = y + 92;
+      cat.keyMetrics.forEach(metric => {
+        setColor(colors.textMuted);
+        doc.setFontSize(fontSize.sm);
+        doc.text(metric.label + ':', margin + spacing.lg, metricY);
+        setColor(colors.textDark);
+        doc.setFontSize(fontSize.body);
+        doc.setFont('helvetica', 'bold');
+        const answerText = String(metric.answer).substring(0, 55) + (String(metric.answer).length > 55 ? '...' : '');
+        doc.text(answerText, margin + 155, metricY);
+        doc.setFont('helvetica', 'normal');
+        metricY += 16;
+      });
+
+      // Improvement opportunities - V4.9: Better visual separation
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Opportunities:', margin + spacing.lg, metricY + 12);
+
+      doc.setFont('helvetica', 'normal');
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      metricY += 28;
+      cat.improvements.slice(0, 2).forEach((imp, i) => {
+        doc.text(`${i + 1}. ${imp}`, margin + spacing.lg + 5, metricY);
+        metricY += 14;
+      });
+
+      y += 205;
+    });
+
+    addFooter(5);
+
+    // ============================================
+    // PAGE 6: BENCHMARKS & RECOMMENDATIONS
+    // ============================================
+    doc.addPage();
+    addHeader('Industry Benchmarks & Action Plan');
+    y = 95;
+
+    // Segment-specific benchmarks - V4.9: Better section header
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.xl);
     doc.setFont('helvetica', 'bold');
-    doc.text(action.impact, margin + 115, y + 44);
+    doc.text(`${segmentLabel} Industry Benchmarks`, margin, y);
 
-    y += 62;
-  });
+    y += spacing.lg;
 
-  addFooter(6);
+    // Benchmark table
+    const segmentBenchmarks = {
+      SL: [
+        { metric: 'Target AR Days', benchmark: '<45 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
+        { metric: 'Private Pay %', benchmark: '66-95%', yours: '~80% typical' },
+        { metric: 'Autopay Adoption', benchmark: '40-50%', yours: answers['autopay_rate'] ? `${answers['autopay_rate']}%` : 'N/A' },
+        { metric: 'Online Payments', benchmark: '60%+', yours: answers['payment_methods']?.includes('Credit cards') ? 'Enabled' : 'Not enabled' }
+      ],
+      MC: [
+        { metric: 'Target AR Days', benchmark: '<45 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
+        { metric: 'Private Pay %', benchmark: '80%+', yours: '~80% typical' },
+        { metric: 'Family Portal Usage', benchmark: '50%+', yours: answers['family_portal'] ? 'Available' : 'Not available' },
+        { metric: 'Multi-Guarantor', benchmark: '60% of residents', yours: answers['payers_per_resident'] || 'N/A' }
+      ],
+      // V4.10: SNF benchmarks updated to focus on patient responsibility collection (Option A)
+      SNF: [
+        { metric: 'Collection Rate', benchmark: '90%', yours: answers['snf_collection_rate'] ? `${answers['snf_collection_rate']}%` : 'Industry avg: 75%' },
+        { metric: 'Private Pay %', benchmark: '~25%', yours: insights?.privatePayPct ? `${insights.privatePayPct}%` : '~25% typical' },
+        { metric: 'Autopay Enrollment', benchmark: '50%+', yours: answers['snf_autopay_enrollment'] ? `${answers['snf_autopay_enrollment']}%` : 'N/A' },
+        { metric: 'Multi-Guarantor', benchmark: 'Automated', yours: answers['snf_multi_guarantor'] === 'automated' ? 'Yes' : (answers['snf_multi_guarantor'] || 'N/A') }
+      ],
+      CCRC: [
+        { metric: 'Target AR Days', benchmark: '<20 days', yours: insights?.arDays ? `${insights.arDays} days` : 'N/A' },
+        { metric: 'Private Pay %', benchmark: '85%', yours: '~85% typical' },
+        { metric: 'Multi-Level Billing', benchmark: 'Unified system', yours: answers['ccrc_multi_level'] || 'N/A' },
+        { metric: 'Entrance Fee Handling', benchmark: 'Automated', yours: answers['ccrc_entrance_fee'] || 'N/A' }
+      ]
+    };
+
+    const benchmarksForSegment = segmentBenchmarks[segment] || segmentBenchmarks['SL'];
+
+    // Table header - V4.9: Better proportions and styling
+    setFillColor(colors.primary);
+    doc.roundedRect(margin, y, contentWidth, 28, radius.sm, radius.sm, 'F');
+    setColor(colors.white);
+    doc.setFontSize(fontSize.body);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Metric', margin + 18, y + 18);
+    doc.text('Industry Benchmark', margin + 185, y + 18);
+    doc.text('Your Status', margin + 365, y + 18);
+
+    y += 28;
+
+    // Table rows - V4.9: Taller rows with better spacing
+    benchmarksForSegment.forEach((row, i) => {
+      setFillColor(i % 2 === 0 ? colors.bgLight : colors.white);
+      doc.rect(margin, y, contentWidth, 26, 'F');
+
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'normal');
+      doc.text(row.metric, margin + 18, y + 17);
+
+      setColor(colors.secondary);
+      doc.setFont('helvetica', 'bold');
+      doc.text(row.benchmark, margin + 185, y + 17);
+
+      setColor(colors.textDark);
+      doc.setFont('helvetica', 'normal');
+      doc.text(row.yours, margin + 365, y + 17);
+
+      y += 26;
+    });
+
+    // Table border
+    setDrawColor([220, 225, 230]);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, y - (benchmarksForSegment.length * 26), contentWidth, benchmarksForSegment.length * 26, radius.sm, radius.sm, 'S');
+
+    y += spacing.section;
+
+    // Action Plan - V4.9: Better section styling
+    setColor(colors.textDark);
+    doc.setFontSize(fontSize.xl);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Recommended Action Plan', margin, y);
+
+    y += spacing.lg;
+
+    // Priority actions based on scores
+    const actions = [];
+
+    if (scores.categories[0] < 60) {
+      actions.push({ priority: 'High', action: 'Implement automated statement generation through PointClickCare integration', impact: 'Reduce staff time by 60%+' });
+    }
+    if (scores.categories[1] < 60) {
+      actions.push({ priority: 'High', action: 'Enable multi-guarantor billing to send individual statements to each family payer', impact: 'Improve collection rates 15-20%' });
+    }
+    if (!scores.useTwoCategories && scores.categories[2] < 60) {
+      actions.push({ priority: 'Medium', action: 'Add card payment acceptance and online payment portal', impact: '67% of families prefer card-accepting facilities' });
+    }
+    if (answers['autopay_rate'] && answers['autopay_rate'] < 40) {
+      actions.push({ priority: 'Medium', action: 'Launch autopay enrollment campaign to increase from ' + answers['autopay_rate'] + '% to 50%+', impact: 'Reduce late payments, improve cash flow' });
+    }
+
+    // Add general recommendations if not enough specific ones
+    if (actions.length < 3) {
+      actions.push({ priority: 'Ongoing', action: 'Schedule PatientPay demo to explore full PointClickCare integration capabilities', impact: 'Comprehensive billing modernization' });
+    }
+
+    actions.slice(0, 4).forEach((action, i) => {
+      setFillColor(colors.bgLight);
+      doc.roundedRect(margin, y, contentWidth, 55, radius.md, radius.md, 'F');
+
+      // Priority badge - V4.9: Larger and more prominent
+      const priorityColor = action.priority === 'High' ? colors.error : action.priority === 'Medium' ? colors.warning : colors.success;
+      setFillColor(priorityColor);
+      doc.roundedRect(margin + spacing.sm, y + 12, 55, 22, radius.sm, radius.sm, 'F');
+      setColor(colors.white);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'bold');
+      doc.text(action.priority, margin + 40, y + 27, { align: 'center' });
+
+      // Action text - V4.9: Better spacing
+      setColor(colors.textDark);
+      doc.setFontSize(fontSize.body);
+      doc.setFont('helvetica', 'bold');
+      const actionLines = doc.splitTextToSize(action.action, contentWidth - 95);
+      doc.text(actionLines, margin + 78, y + 22);
+
+      // Impact - V4.9: Better label formatting
+      setColor(colors.textMuted);
+      doc.setFontSize(fontSize.sm);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Impact: ', margin + 78, y + 44);
+      setColor(colors.secondary);
+      doc.setFont('helvetica', 'bold');
+      doc.text(action.impact, margin + 115, y + 44);
+
+      y += 62;
+    });
+
+    addFooter(6);
+
+  }
+
 
   // ============================================
   // PAGE 7: YOUR RESPONSES
@@ -5758,13 +6711,8 @@ async function generatePDFReport(formData, answers, scores) {
   setFillColor(colors.accent);
   doc.roundedRect(margin, y, contentWidth, 4, radius.xl, radius.xl, 'F');
 
-  // Logo in CTA - V4.9: Better positioned
-  setColor(colors.white);
-  doc.setFontSize(fontSize.h2);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Patient', margin + spacing.lg, y + 32);
-  setColor(colors.secondary);
-  doc.text('Pay', margin + spacing.lg + doc.getTextWidth('Patient'), y + 32);
+  // V4.15: Logo in CTA using image or text fallback
+  drawLogo(margin + spacing.lg, y + 32, 'normal', true);
 
   setColor(colors.white);
   doc.setFontSize(fontSize.h1);
