@@ -855,20 +855,31 @@ const Questions = [
     }
   },
 
-  // FAM5: Family Portal Availability
+  // FAM5: Family Portal Capability
+  // V4.16: Conditional on statement_delivery including "Online portal access"
+  // If no portal selected in delivery, question is hidden and scored as minimum (no portal)
+  // If portal IS selected, asks about capability depth (removes "No portal" option - they already said they have one)
   {
     id: 'family_portal',
     category: "Resident & Family Experience",
     categoryIndex: 1,
-    question: "Do families have access to a self-service billing portal?",
+    question: "How capable is your family billing portal?",
     type: "single",
     segments: ['SL', 'MC', 'CCRC'],
-    // V4.3: Least capable first
+    isSubQuestion: true, // Render as indented sub-question (follows from portal selection in delivery)
+    conditional: {
+      questionId: 'statement_delivery',
+      showIfIncludesAny: ["Online portal access"]
+    },
+    // V4.16: When hidden (no portal delivery selected), auto-score as no portal (20/100)
+    autoScore: {
+      whenHidden: true,
+      score: 20
+    },
     options: [
-      { label: "No self-service portal available", score: 20 },
-      { label: "Yes, but viewing only (no payments)", score: 50 },
-      { label: "Yes, portal with viewing and payments", score: 80 },
-      { label: "Yes, full portal with viewing, payments, history, and communication", score: 100 }
+      { label: "Viewing only (no payments)", score: 50 },
+      { label: "Viewing and payments", score: 80 },
+      { label: "Full portal: viewing, payments, history, and communication", score: 100 }
     ]
   },
 
@@ -1767,6 +1778,14 @@ const RecommendationDefinitions = [
     category: 'family',
     title: 'Implement a Family Self-Service Portal',
     trigger: (answers) => {
+      // V4.16: Portal question is now conditional on delivery method
+      // If user didn't select "Online portal access" in delivery, they have no portal
+      const delivery = answers['statement_delivery'];
+      const hasPortalDelivery = Array.isArray(delivery)
+        ? delivery.includes('Online portal access')
+        : delivery === 'Online portal access';
+      if (!hasPortalDelivery) return true; // No portal delivery = no portal
+      // Legacy fallback for old answers
       const portal = answers['family_portal'];
       return portal === 'No self-service portal available';
     },
@@ -1790,7 +1809,8 @@ const RecommendationDefinitions = [
     title: 'Upgrade to Full-Featured Family Portal',
     trigger: (answers) => {
       const portal = answers['family_portal'];
-      return portal === 'Yes, but viewing only (no payments)';
+      // V4.16: Option label shortened (removed "Yes, but" prefix)
+      return portal === 'Viewing only (no payments)' || portal === 'Yes, but viewing only (no payments)';
     },
     currentState: (answers) => "Portal is view-only - families can see bills but can't pay online",
     targetState: "Full portal with viewing, payments, history, and communication",
@@ -2568,8 +2588,14 @@ const PatientPayProjectionConfig = {
   },
 
   // Add family portal
+  // V4.16: Also triggers when portal question was hidden (no portal delivery selected)
   add_family_portal: {
     condition: (answers) => {
+      const delivery = answers['statement_delivery'];
+      const hasPortalDelivery = Array.isArray(delivery)
+        ? delivery.includes('Online portal access')
+        : delivery === 'Online portal access';
+      if (!hasPortalDelivery) return true;
       return answers['family_portal'] === 'No self-service portal available';
     },
     categoryImpacts: [10, 25, 5],
@@ -2580,9 +2606,11 @@ const PatientPayProjectionConfig = {
   },
 
   // Enhance family portal
+  // V4.16: Updated to match new option label
   enhance_family_portal: {
     condition: (answers) => {
-      return answers['family_portal'] === 'Yes, but viewing only (no payments)';
+      const portal = answers['family_portal'];
+      return portal === 'Viewing only (no payments)' || portal === 'Yes, but viewing only (no payments)';
     },
     categoryImpacts: [5, 15, 0],
     overallImpact: 5,
@@ -3136,6 +3164,13 @@ function calculateScores(answers) {
     // Check if this question was NOT visible (skipped) and should get auto-score
     const isVisible = visibleQuestions.some(vq => vq.id === q.id);
     if (isVisible) return; // Don't auto-score if question was shown
+
+    // V4.16: Support autoScoreWhenHidden (always score when hidden, regardless of parent value)
+    if (q.autoScore.whenHidden) {
+      categoryData[q.categoryIndex].sum += q.autoScore.score;
+      categoryData[q.categoryIndex].count += 1;
+      return;
+    }
 
     // Check if parent answer matches autoScore.whenParentIs
     const parentAnswer = answers[q.conditional?.questionId];
@@ -4652,8 +4687,16 @@ async function generatePDFReport(formData, answers, scores) {
     gaps.push({ yours: 'Checks and ACH only', expected: 'Card payments and digital wallets' });
   }
 
+  // V4.16: Check portal status from both delivery method and portal capability question
+  const hasPortalDelivery = Array.isArray(delivery)
+    ? delivery.includes('Online portal access')
+    : delivery === 'Online portal access';
   const portal = answers['family_portal'];
-  if (portal === 'No self-service portal available' || portal === 'no') {
+  if (!hasPortalDelivery) {
+    // No portal delivery selected = no portal at all
+    gaps.push({ yours: 'No self-service billing access', expected: '24/7 online portal for balances and payments' });
+  } else if (portal === 'No self-service portal available' || portal === 'no') {
+    // Legacy answer fallback
     gaps.push({ yours: 'No self-service billing access', expected: '24/7 online portal for balances and payments' });
   }
 
@@ -4814,8 +4857,8 @@ async function generatePDFReport(formData, answers, scores) {
     });
   }
 
-  // Family portal
-  if (portal && (portal === 'No self-service portal available' || portal === 'no')) {
+  // Family portal - V4.16: Check both delivery method and portal answer
+  if (!hasPortalDelivery || portal === 'No self-service portal available' || portal === 'no') {
     compRows.push({
       label: 'Family Access',
       today: 'No self-service billing access',
@@ -5212,6 +5255,8 @@ async function generatePDFReport(formData, answers, scores) {
     [
       answers['multi_guarantor_capability'] ? { label: 'Multi-Guarantor', value: answers['multi_guarantor_capability'] } : null,
       answers['payment_methods'] ? { label: 'Payment Methods', value: Array.isArray(answers['payment_methods']) ? answers['payment_methods'].join(', ') : answers['payment_methods'] } : null,
+      // V4.16: Show portal status derived from delivery + portal capability
+      { label: 'Family Portal', value: hasPortalDelivery ? (answers['family_portal'] || 'Available') : 'Not available' },
       answers['family_satisfaction'] ? { label: 'Family Satisfaction', value: answers['family_satisfaction'] } : null,
     ].filter(Boolean),
     // Competitive
