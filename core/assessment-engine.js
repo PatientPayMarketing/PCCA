@@ -3250,33 +3250,51 @@ function getScoreLevel(score, segment) {
 }
 
 /**
- * Get score color - V4.15: Benchmark-relative colors
- * Colors now reflect position vs industry benchmark when segment is provided.
+ * Get score color - V4.15: Smooth continuous gradient from red → amber → green
+ * Uses benchmark-relative positioning when segment is provided.
+ * The color is a smooth interpolation, not discrete buckets.
+ *
+ * Spectrum: Red (#EF4444) → Orange (#F97316) → Amber (#F59E0B) → Lime (#84CC16) → Green (#10B981)
+ * Mapped to: 15+ below benchmark ... at benchmark ... 15+ above benchmark
  *
  * @param {number} score - Score value (0-100)
  * @param {string} [segment] - Optional segment for benchmark-relative coloring
- * @returns {string} - Hex color
+ * @returns {string} - CSS color string
  */
 function getScoreColor(score, segment) {
+  // Determine position as 0-1 value (0 = worst, 1 = best)
+  let position;
+
   const benchmark = segment && IndustryBenchmarks[segment]
     ? IndustryBenchmarks[segment].overall
     : null;
 
   if (benchmark !== null) {
+    // Benchmark-relative: map gap of -20..+20 to 0..1
     const gap = score - benchmark;
-    if (gap >= 15) return AssessmentColors.success;     // Leading - green
-    if (gap >= 5) return '#84CC16';                     // Ahead - light green
-    if (gap >= -4) return AssessmentColors.secondary;   // On Track / Building Momentum - blue (neutral-positive)
-    if (gap >= -14) return AssessmentColors.warning;    // Opportunity Ahead - amber
-    return '#F97316';                                   // Early Stage - orange
+    position = Math.max(0, Math.min(1, (gap + 20) / 40));
+  } else {
+    // Fallback: absolute 0-100 mapped to 0..1
+    position = Math.max(0, Math.min(1, score / 100));
   }
 
-  // Fallback: absolute thresholds
-  if (score >= 85) return AssessmentColors.success;
-  if (score >= 70) return '#84CC16';
-  if (score >= 55) return AssessmentColors.secondary;
-  if (score >= 40) return AssessmentColors.warning;
-  return '#F97316';
+  // 5-stop gradient: Red → Orange → Amber → Lime → Green
+  const stops = [
+    { pos: 0.00, color: '#EF4444' },  // Red
+    { pos: 0.25, color: '#F97316' },  // Orange
+    { pos: 0.50, color: '#F59E0B' },  // Amber (benchmark)
+    { pos: 0.75, color: '#84CC16' },  // Lime
+    { pos: 1.00, color: '#10B981' },  // Green
+  ];
+
+  // Find the two stops to interpolate between
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (position <= stops[i + 1].pos) {
+      const t = (position - stops[i].pos) / (stops[i + 1].pos - stops[i].pos);
+      return interpolateColor(stops[i].color, stops[i + 1].color, t);
+    }
+  }
+  return stops[stops.length - 1].color;
 }
 
 /**
@@ -4010,23 +4028,34 @@ async function generatePDFReport(formData, answers, scores) {
     return '$' + num.toLocaleString('en-US');
   };
 
-  // V4.15: Benchmark-relative PDF score colors
+  // V4.15: Smooth continuous gradient for PDF (red → amber → green)
+  // Returns RGB array for jsPDF. Uses same benchmark-relative logic as getScoreColor.
   const getScoreColorArr = (score) => {
     const benchmark = IndustryBenchmarks[segment] ? IndustryBenchmarks[segment].overall : null;
+    let position;
     if (benchmark !== null) {
       const gap = score - benchmark;
-      if (gap >= 15) return colors.success;      // Leading - green
-      if (gap >= 5) return [132, 204, 22];        // Ahead - light green
-      if (gap >= -4) return colors.secondary;     // On Track / Building Momentum - blue
-      if (gap >= -14) return colors.warning;      // Opportunity Ahead - amber
-      return [249, 115, 22];                      // Early Stage - orange
+      position = Math.max(0, Math.min(1, (gap + 20) / 40));
+    } else {
+      position = Math.max(0, Math.min(1, score / 100));
     }
-    // Fallback
-    if (score >= 85) return colors.success;
-    if (score >= 70) return [132, 204, 22];
-    if (score >= 55) return colors.secondary;
-    if (score >= 40) return colors.warning;
-    return [249, 115, 22];
+
+    // 5-stop gradient: Red → Orange → Amber → Lime → Green (RGB arrays)
+    const stops = [
+      { pos: 0.00, rgb: [239, 68, 68] },    // Red
+      { pos: 0.25, rgb: [249, 115, 22] },    // Orange
+      { pos: 0.50, rgb: [245, 158, 11] },    // Amber
+      { pos: 0.75, rgb: [132, 204, 22] },    // Lime
+      { pos: 1.00, rgb: [16, 185, 129] },    // Green
+    ];
+
+    for (let i = 0; i < stops.length - 1; i++) {
+      if (position <= stops[i + 1].pos) {
+        const t = (position - stops[i].pos) / (stops[i + 1].pos - stops[i].pos);
+        return stops[i].rgb.map((c, j) => Math.round(c + (stops[i + 1].rgb[j] - c) * t));
+      }
+    }
+    return stops[stops.length - 1].rgb;
   };
 
   // V4.15: Benchmark-relative labels with contextual descriptions
