@@ -4260,9 +4260,9 @@ async function generatePDFReport(formData, answers, scores) {
   setFillColor(colors.bgLight);
   doc.roundedRect(margin, y, contentWidth, 165, radius.xl, radius.xl, 'F');
 
-  // Subtle top border accent
+  // Subtle top border accent (flat rect inset to stay within rounded corners)
   setFillColor(colors.secondary);
-  doc.roundedRect(margin, y, contentWidth, 4, radius.xl, radius.xl, 'F');
+  doc.rect(margin + radius.xl, y, contentWidth - radius.xl * 2, 4, 'F');
 
   setColor(colors.textDark);
   doc.setFontSize(fontSize.md);
@@ -4414,7 +4414,7 @@ async function generatePDFReport(formData, answers, scores) {
     setFillColor(colors.bgLight);
     doc.roundedRect(margin, y, contentWidth, boxH, radius.lg, radius.lg, 'F');
     setFillColor(gapColor);
-    doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+    doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 4, 'F');
 
     // Left third: Your Score
     const leftX = margin + spacing.lg;
@@ -4621,8 +4621,9 @@ async function generatePDFReport(formData, answers, scores) {
 
   setFillColor(colors.primary);
   doc.roundedRect(margin, y, contentWidth, shiftBoxH, radius.lg, radius.lg, 'F');
+  // Accent bar inset to stay within rounded corners
   setFillColor(colors.accent);
-  doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+  doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 4, 'F');
 
   setColor(colors.white);
   doc.text(shiftLines, margin + spacing.lg, y + 26);
@@ -4923,8 +4924,9 @@ async function generatePDFReport(formData, answers, scores) {
     if (y + 105 < pageHeight - 80) {
       setFillColor([255, 251, 235]); // Light amber
       doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
+      // Accent bar inset to stay within rounded corners
       setFillColor(colors.accent);
-      doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+      doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 4, 'F');
 
       // Headline with amount
       setColor(colors.textDark);
@@ -4976,19 +4978,19 @@ async function generatePDFReport(formData, answers, scores) {
     y += 68;
   }
 
-  // Section D: Total Annual Savings Box (always renders if there are savings)
+  // Section D: Annual Impact Summary (individual line items, no combined total)
   const savingsInquiry = insights.potentialInquirySavings || 0;
   const savingsCards = insights.annualCardFeesAbsorbed || 0;
   const savingsAutopay = insights.cashFreedByAutopay || 0;
-  const totalSavings = savingsInquiry + savingsCards + savingsAutopay;
+  const hasAnySavings = savingsInquiry > 0 || savingsCards > 0 || savingsAutopay > 0;
 
-  if (totalSavings > 0) {
+  if (hasAnySavings) {
     // Count line items to size the box
     let savingsLineCount = 0;
     if (savingsInquiry > 0) savingsLineCount++;
     if (savingsCards > 0) savingsLineCount++;
     if (savingsAutopay > 0) savingsLineCount++;
-    const savingsBoxH = 44 + savingsLineCount * 16 + 24;
+    const savingsBoxH = 36 + savingsLineCount * 18;
 
     // Ensure savings box always fits - anchor to bottom of page if tight on space
     const savingsMinY = pageHeight - 60 - savingsBoxH;
@@ -4996,38 +4998,36 @@ async function generatePDFReport(formData, answers, scores) {
       y = savingsMinY;
     }
 
+    // Navy box with integrated yellow accent top
     setFillColor(colors.primary);
     doc.roundedRect(margin, y, contentWidth, savingsBoxH, radius.lg, radius.lg, 'F');
+    // Accent bar inset by corner radius so it doesn't extend past rounded corners
+    setFillColor(colors.accent);
+    doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 4, 'F');
 
     setColor(colors.accent);
     doc.setFontSize(fontSize.md);
     doc.setFont('helvetica', 'bold');
-    doc.text('ANNUAL COST SAVINGS WITH PATIENTPAY', margin + spacing.lg, y + 22);
+    doc.text('ANNUAL IMPACT WITH PATIENTPAY', margin + spacing.lg, y + 22);
 
-    // Line items (left column)
-    let lineY = y + 40;
+    // Line items
+    let lineY = y + 38;
     setColor(colors.white);
     doc.setFontSize(fontSize.body);
     doc.setFont('helvetica', 'normal');
 
     if (savingsInquiry > 0) {
       doc.text(`Staff Time Recaptured: ${formatCurrency(savingsInquiry)}`, margin + spacing.lg, lineY);
-      lineY += 16;
+      lineY += 18;
     }
     if (savingsCards > 0) {
       doc.text(`Card Fees Eliminated: ${formatCurrency(savingsCards)}`, margin + spacing.lg, lineY);
-      lineY += 16;
+      lineY += 18;
     }
     if (savingsAutopay > 0) {
       doc.text(`Cash Flow from Autopay: ${formatCurrency(savingsAutopay)}`, margin + spacing.lg, lineY);
-      lineY += 16;
+      lineY += 18;
     }
-
-    // Total (right-aligned, vertically centered)
-    setColor(colors.accent);
-    doc.setFontSize(fontSize.xl);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Total: ${formatCurrency(totalSavings)}`, margin + contentWidth - spacing.lg, y + savingsBoxH / 2 + 6, { align: 'right' });
 
     y += savingsBoxH + spacing.sm;
   }
@@ -5046,29 +5046,35 @@ async function generatePDFReport(formData, answers, scores) {
     // Section A: Score Projection
     setFillColor([240, 253, 244]);
     doc.roundedRect(margin, y, contentWidth, 90, radius.lg, radius.lg, 'F');
+    // Accent bar inset to stay within rounded corners
     setFillColor(colors.success);
-    doc.roundedRect(margin, y, contentWidth, 4, radius.lg, radius.lg, 'F');
+    doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 4, 'F');
 
-    // Current score
+    // Balanced layout: current at 1/4, arrow in center, projected at 3/4
+    const quarterX = margin + contentWidth * 0.2;
+    const threeQuarterX = margin + contentWidth * 0.65;
+    const centerX = margin + contentWidth / 2;
+
+    // Current score (left side, centered on 1/4 mark)
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text('CURRENT', margin + spacing.lg, y + 24);
+    doc.text('CURRENT', quarterX, y + 24, { align: 'center' });
 
     const curColor = getScoreColorArr(projectionsData.current.overall);
     setColor(curColor);
     doc.setFontSize(36);
     doc.setFont('helvetica', 'bold');
-    doc.text(projectionsData.current.overall.toString(), margin + spacing.lg, y + 60);
+    doc.text(projectionsData.current.overall.toString(), quarterX, y + 60, { align: 'center' });
 
     setColor(curColor);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'normal');
-    doc.text(getScoreLevelText(projectionsData.current.overall).level, margin + spacing.lg, y + 76);
+    doc.text(getScoreLevelText(projectionsData.current.overall).level, quarterX, y + 76, { align: 'center' });
 
-    // Arrow line with arrowhead
-    const arrowStartX = margin + 120;
-    const arrowEndX = margin + 200;
+    // Arrow line with arrowhead (centered in box)
+    const arrowStartX = quarterX + 45;
+    const arrowEndX = threeQuarterX - 45;
     const arrowY = y + 50;
     setDrawColor(colors.success);
     doc.setLineWidth(2);
@@ -5086,20 +5092,20 @@ async function generatePDFReport(formData, answers, scores) {
     doc.setFont('helvetica', 'bold');
     doc.text(`+${projectionsData.overallImprovement}`, badgeCenterX, y + 43, { align: 'center' });
 
-    // Projected score
+    // Projected score (right side, centered on 3/4 mark)
     setColor(colors.textMuted);
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'bold');
-    doc.text('PROJECTED', margin + 310, y + 24);
+    doc.text('PROJECTED', threeQuarterX, y + 24, { align: 'center' });
 
     setColor(colors.success);
     doc.setFontSize(36);
     doc.setFont('helvetica', 'bold');
-    doc.text(projectionsData.projected.overall.toString(), margin + 310, y + 60);
+    doc.text(projectionsData.projected.overall.toString(), threeQuarterX, y + 60, { align: 'center' });
 
     doc.setFontSize(fontSize.sm);
     doc.setFont('helvetica', 'normal');
-    doc.text(getScoreLevelText(projectionsData.projected.overall).level, margin + 310, y + 76);
+    doc.text(getScoreLevelText(projectionsData.projected.overall).level, threeQuarterX, y + 76, { align: 'center' });
 
     y += 110;
 
@@ -6406,9 +6412,9 @@ async function generatePDFReport(formData, answers, scores) {
       setFillColor(colors.primary);
       doc.roundedRect(margin, y, contentWidth, 95, radius.lg, radius.lg, 'F');
 
-      // Accent line at top
+      // Accent line at top (flat rect inset to stay within rounded corners)
       setFillColor(colors.accent);
-      doc.roundedRect(margin, y, contentWidth, 3, radius.lg, radius.lg, 'F');
+      doc.rect(margin + radius.lg, y, contentWidth - radius.lg * 2, 3, 'F');
 
       setColor(colors.accent);
       doc.setFontSize(fontSize.md);
@@ -6824,9 +6830,9 @@ async function generatePDFReport(formData, answers, scores) {
   setFillColor(colors.primary);
   doc.roundedRect(margin, y, contentWidth, 105, radius.xl, radius.xl, 'F');
 
-  // Accent line at top
+  // Accent line at top (flat rect inset to stay within rounded corners)
   setFillColor(colors.accent);
-  doc.roundedRect(margin, y, contentWidth, 4, radius.xl, radius.xl, 'F');
+  doc.rect(margin + radius.xl, y, contentWidth - radius.xl * 2, 4, 'F');
 
   // V4.15: Logo in CTA using image or text fallback
   drawLogo(margin + spacing.lg, y + 32, 'normal', true);
