@@ -838,18 +838,14 @@
           facilityType: contactData?.facilityType || ''
         };
 
-        // Use sendBeacon for reliability (survives page close), fallback to fetch
-        const data = JSON.stringify(payload);
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon(FUNNEL_WEBHOOK_URL, data);
-        } else {
-          fetch(FUNNEL_WEBHOOK_URL, {
-            method: 'POST',
-            body: data,
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true
-          }).catch(() => {}); // Silent fail
-        }
+        // Use fetch with proper JSON headers so Make.com parses fields correctly
+        // keepalive: true helps ensure request completes even if page is closing
+        fetch(FUNNEL_WEBHOOK_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true
+        }).catch(() => {}); // Silent fail - never block user flow
       } catch (e) {
         // Never let tracking break the assessment
       }
