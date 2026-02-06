@@ -3842,6 +3842,7 @@
       // Slide 5 (or 4 for SNF): Next Steps
       const NextStepsSlide = () => {
         const [pdfLoading, setPdfLoading] = useState(false);
+        const [resourcesExpanded, setResourcesExpanded] = useState(false);
 
         const handleDownloadPDF = async () => {
           setPdfLoading(true);
@@ -3852,6 +3853,61 @@
           }
           setPdfLoading(false);
         };
+
+        // V4.18: Build segment-specific statistics for Resources section
+        const getSegmentResources = () => {
+          const segmentStats = stats[segment] || {};
+          const universalStats = stats.universal || {};
+
+          // Category labels based on segment
+          const catNames = segment === 'SNF' ? snfCategoryNames : categoryNames;
+          const categoryKeys = segment === 'SNF'
+            ? ['operational', 'experience'] // SNF only has 2 categories
+            : ['operational', 'experience', 'competitive'];
+
+          const categoryLabels = {
+            operational: catNames[0] || 'Operational Readiness',
+            experience: catNames[1] || (segment === 'SNF' ? 'Patient & Family Experience' : 'Resident & Family Experience'),
+            competitive: catNames[2] || 'Competitive Position'
+          };
+
+          const categoryColors = {
+            operational: '#3c8fc7',
+            experience: '#8B5CF6',
+            competitive: '#fcc93b'
+          };
+
+          // Build resources array with segment-specific stats first, then universal
+          const resources = [];
+
+          categoryKeys.forEach(key => {
+            const segSpecific = segmentStats[key] || [];
+            const universal = universalStats[key] || [];
+
+            // Combine: segment-specific first, then universal (avoid duplicates by stat value)
+            const combined = [...segSpecific];
+            const existingStats = new Set(segSpecific.map(s => s.stat));
+            universal.forEach(u => {
+              if (!existingStats.has(u.stat)) {
+                combined.push(u);
+              }
+            });
+
+            if (combined.length > 0) {
+              resources.push({
+                category: key,
+                label: categoryLabels[key],
+                color: categoryColors[key],
+                stats: combined
+              });
+            }
+          });
+
+          return resources;
+        };
+
+        const segmentResources = getSegmentResources();
+        const segmentLabel = facilityTypes[segment]?.label || segment;
 
         return (
           <div>
@@ -3958,20 +4014,168 @@
               </div>
             </div>
 
-            <div className="glass-card" style={{ padding: 28 }}>
-              <h4 style={{ fontFamily: "'Archivo'", fontSize: 16, fontWeight: 700, marginBottom: 16, color: 'var(--text-secondary)' }}>
-                Sources
-              </h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {sources.map((source, i) => (
-                  <span key={i} style={{
-                    padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 500,
-                    background: 'var(--bg-tertiary)', color: 'var(--text-muted)'
-                  }}>
-                    {source.name}
+            {/* V4.18: Resources Accordion - Segment-specific statistics */}
+            <div className="glass-card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+              <button
+                onClick={() => setResourcesExpanded(!resourcesExpanded)}
+                style={{
+                  width: '100%',
+                  padding: '20px 24px',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  color: 'inherit'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ color: '#3c8fc7' }}>
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{ fontFamily: "'Archivo'", fontSize: 16, fontWeight: 700 }}>
+                    Industry Resources for {segmentLabel}
                   </span>
-                ))}
-              </div>
+                </div>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    transform: resourcesExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.3s ease'
+                  }}
+                >
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
+              {resourcesExpanded && (
+                <div style={{
+                  padding: '0 24px 24px 24px',
+                  animation: 'fadeIn 0.3s ease'
+                }}>
+                  <p style={{
+                    fontSize: 13,
+                    color: 'var(--text-secondary)',
+                    marginBottom: 20,
+                    paddingBottom: 16,
+                    borderBottom: '1px solid var(--border-subtle)'
+                  }}>
+                    Key industry statistics used in your assessment, tailored to {segmentLabel} facilities.
+                  </p>
+
+                  {segmentResources.map((category, catIndex) => (
+                    <div key={category.category} style={{ marginBottom: catIndex < segmentResources.length - 1 ? 24 : 0 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        marginBottom: 12
+                      }}>
+                        <div style={{
+                          width: 4,
+                          height: 20,
+                          borderRadius: 2,
+                          background: category.color
+                        }} />
+                        <h5 style={{
+                          fontFamily: "'Archivo'",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          margin: 0,
+                          color: category.color
+                        }}>
+                          {category.label}
+                        </h5>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {category.stats.map((stat, statIndex) => (
+                          <div
+                            key={statIndex}
+                            style={{
+                              padding: '12px 16px',
+                              background: 'rgba(255,255,255,0.02)',
+                              borderRadius: 8,
+                              border: '1px solid var(--border-subtle)',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 12
+                            }}
+                          >
+                            <span style={{
+                              fontFamily: "'Archivo'",
+                              fontSize: 18,
+                              fontWeight: 800,
+                              color: category.color,
+                              minWidth: 80,
+                              flexShrink: 0
+                            }}>
+                              {stat.stat}
+                            </span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{
+                                fontSize: 13,
+                                color: 'var(--text-primary)',
+                                margin: 0,
+                                lineHeight: 1.4
+                              }}>
+                                {stat.context}
+                              </p>
+                              <p style={{
+                                fontSize: 11,
+                                color: 'var(--text-muted)',
+                                margin: '4px 0 0 0',
+                                fontStyle: 'italic'
+                              }}>
+                                Source: {stat.source}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Sources Summary */}
+                  <div style={{
+                    marginTop: 24,
+                    paddingTop: 16,
+                    borderTop: '1px solid var(--border-subtle)'
+                  }}>
+                    <h5 style={{
+                      fontFamily: "'Archivo'",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      marginBottom: 10,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Data Sources
+                    </h5>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {sources.map((source, i) => (
+                        <span key={i} style={{
+                          padding: '4px 10px',
+                          borderRadius: 100,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          background: 'var(--bg-tertiary)',
+                          color: 'var(--text-muted)'
+                        }}>
+                          {source.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <NavButtons />
           </div>
