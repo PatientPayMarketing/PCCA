@@ -820,7 +820,8 @@
     const FUNNEL_SESSION_ID = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
 
     // Track funnel events - fires silently, never blocks user flow
-    const trackFunnelEvent = (eventName, segment = null) => {
+    // Optional contactData parameter for contact_submitted event
+    const trackFunnelEvent = (eventName, segment = null, contactData = null) => {
       try {
         const payload = {
           sessionId: FUNNEL_SESSION_ID,
@@ -829,7 +830,11 @@
           segment: segment || '',
           userAgent: navigator.userAgent,
           screenWidth: window.innerWidth,
-          screenHeight: window.innerHeight
+          screenHeight: window.innerHeight,
+          // Contact info (only populated for contact_submitted event)
+          name: contactData?.name || '',
+          email: contactData?.email || '',
+          organization: contactData?.organization || ''
         };
 
         // Use sendBeacon for reliability (survives page close), fallback to fetch
@@ -4062,7 +4067,11 @@
           {screen === 'contact' && <ContactForm
             onSubmit={(data) => {
               // V4.1: Facility type now comes from contact form, set it in answers for question routing
-              trackFunnelEvent('contact_submitted', data.facilityType);
+              trackFunnelEvent('contact_submitted', data.facilityType, {
+                name: data.name,
+                email: data.email,
+                organization: data.organization
+              });
               setFormData(data);
               setAnswers(prev => ({ ...prev, facility_type: data.facilityType }));
               setScreen('questions');
