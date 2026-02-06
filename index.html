@@ -812,6 +812,47 @@
     };
 
     // ============================================
+    // FUNNEL TRACKING - V4.17: Diagnostic events for drop-off analysis
+    // ============================================
+    const FUNNEL_WEBHOOK_URL = 'https://hook.us2.make.com/d6l99sh2s49kbowf79nfhfai8yqokbqq';
+
+    // Generate a unique session ID once per page load
+    const FUNNEL_SESSION_ID = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+
+    // Track funnel events - fires silently, never blocks user flow
+    const trackFunnelEvent = (eventName, segment = null) => {
+      try {
+        const payload = {
+          sessionId: FUNNEL_SESSION_ID,
+          timestamp: new Date().toISOString(),
+          event: eventName,
+          segment: segment || '',
+          userAgent: navigator.userAgent,
+          screenWidth: window.innerWidth,
+          screenHeight: window.innerHeight
+        };
+
+        // Use sendBeacon for reliability (survives page close), fallback to fetch
+        const data = JSON.stringify(payload);
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(FUNNEL_WEBHOOK_URL, data);
+        } else {
+          fetch(FUNNEL_WEBHOOK_URL, {
+            method: 'POST',
+            body: data,
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true
+          }).catch(() => {}); // Silent fail
+        }
+      } catch (e) {
+        // Never let tracking break the assessment
+      }
+    };
+
+    // Fire page_load event immediately
+    trackFunnelEvent('page_load');
+
+    // ============================================
     // CONTACT FORM - V4.1: Now includes facility type with segment-conditional fields
     // ============================================
     const ContactForm = ({ onSubmit, onCompetitorBlocked }) => {
@@ -4013,11 +4054,15 @@
           <GradientOrbs />
           <ParticleField />
 
-          {screen === 'welcome' && <WelcomeScreen onStart={() => setScreen('contact')} />}
+          {screen === 'welcome' && <WelcomeScreen onStart={() => {
+            trackFunnelEvent('begin_clicked');
+            setScreen('contact');
+          }} />}
           {screen === 'blocked' && <CompetitorBlockedScreen />}
           {screen === 'contact' && <ContactForm
             onSubmit={(data) => {
               // V4.1: Facility type now comes from contact form, set it in answers for question routing
+              trackFunnelEvent('contact_submitted', data.facilityType);
               setFormData(data);
               setAnswers(prev => ({ ...prev, facility_type: data.facilityType }));
               setScreen('questions');
@@ -4044,8 +4089,14 @@
 
                 // Check if we're done with questions
                 if (currentQIdx === -1 || nextIdx >= newVisible.length) {
+                  trackFunnelEvent('questions_completed', answersRef.current['facility_type']);
                   setScreen('processing');
                 } else {
+                  // Track halfway point (only fire once when crossing 50%)
+                  const halfwayIdx = Math.floor(newVisible.length / 2);
+                  if (nextIdx === halfwayIdx) {
+                    trackFunnelEvent('halfway_reached', answersRef.current['facility_type']);
+                  }
                   setQuestionIndex(nextIdx);
                 }
               }}
@@ -4059,6 +4110,9 @@
           {screen === 'processing' && <ProcessingScreen onComplete={() => {
             const calculatedScores = calculateScores(answers);
             setScores(calculatedScores);
+
+            // Track successful completion before webhook
+            trackFunnelEvent('submission_complete', answers['facility_type']);
 
             // Send data to webhook (non-blocking)
             sendWebhook(formData, answers, calculatedScores, 'index-production')
