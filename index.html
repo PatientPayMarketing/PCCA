@@ -834,7 +834,8 @@
           // Contact info (only populated for contact_submitted event)
           name: contactData?.name || '',
           email: contactData?.email || '',
-          organization: contactData?.organization || ''
+          organization: contactData?.organization || '',
+          facilityType: contactData?.facilityType || ''
         };
 
         // Use sendBeacon for reliability (survives page close), fallback to fetch
@@ -4070,7 +4071,8 @@
               trackFunnelEvent('contact_submitted', data.facilityType, {
                 name: data.name,
                 email: data.email,
-                organization: data.organization
+                organization: data.organization,
+                facilityType: data.facilityType
               });
               setFormData(data);
               setAnswers(prev => ({ ...prev, facility_type: data.facilityType }));
